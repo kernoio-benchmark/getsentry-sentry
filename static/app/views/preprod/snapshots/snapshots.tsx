@@ -10,7 +10,6 @@ import LoadingIndicator from 'sentry/components/loadingIndicator';
 import SentryDocumentTitle from 'sentry/components/sentryDocumentTitle';
 import {IconGrabbable} from 'sentry/icons';
 import {t} from 'sentry/locale';
-import {space} from 'sentry/styles/space';
 import getApiUrl from 'sentry/utils/api/getApiUrl';
 import {useInfiniteApiQuery} from 'sentry/utils/queryClient';
 import useOrganization from 'sentry/utils/useOrganization';
@@ -277,7 +276,7 @@ export default function SnapshotsPage() {
 const DragHandle = styled('div')`
   display: grid;
   place-items: center;
-  width: ${space(2)};
+  width: ${p => p.theme.space.xl};
   height: 100%;
   cursor: ew-resize;
   user-select: inherit;

@@ -11,7 +11,6 @@ import {Tooltip} from '@sentry/scraps/tooltip';
 import {DropdownMenu, type MenuItemProps} from 'sentry/components/dropdownMenu';
 import {useFrontendVersion} from 'sentry/components/frontendVersionContext';
 import {IconDefaultsProvider} from 'sentry/icons/useIconDefaults';
-import {space} from 'sentry/styles/space';
 import type {Organization} from 'sentry/types/organization';
 import {trackAnalytics} from 'sentry/utils/analytics';
 import normalizeUrl from 'sentry/utils/url/normalizeUrl';
@@ -302,7 +301,7 @@ const SeparatorListItem = styled('li')<{hasMargin?: boolean}>`
   ${p =>
     p.hasMargin &&
     css`
-      margin: ${space(0.5)} 0;
+      margin: ${p.theme.space.xs} 0;
     `}
 `;
 
@@ -343,7 +342,9 @@ const NavLink = styled(Link, {
   align-items: center;
 
   padding: ${p =>
-    p.isMobile ? `${space(1)} ${space(3)}` : `${space(0.75)} ${space(1.5)}`};
+    p.isMobile
+      ? `${p.theme.space.md} ${p.theme.space['2xl']}`
+      : `${p.theme.space.sm} ${p.theme.space.lg}`};
 
   /* On mobile, the buttons are horizontal, so we need a gap between the icon and label */
   gap: ${p => (p.isMobile ? p.theme.space.md : p.theme.space.xs)};
@@ -423,10 +424,11 @@ const StyledNavButton = styled(Button, {
   justify-content: ${p => (p.isMobile ? 'flex-start' : 'center')};
   height: ${p => (p.isMobile ? 'auto' : '44px')};
   width: ${p => (p.isMobile ? '100%' : '44px')};
-  padding: ${p => (p.isMobile ? `${space(1)} ${space(3)}` : space(0.5))};
+  padding: ${p =>
+    p.isMobile ? `${p.theme.space.md} ${p.theme.space['2xl']}` : p.theme.space.xs};
 
   svg {
-    margin-right: ${p => (p.isMobile ? space(1) : undefined)};
+    margin-right: ${p => (p.isMobile ? p.theme.space.md : undefined)};
   }
 
   /* Disable interactionstatelayer hover */
@@ -498,5 +500,5 @@ export const SidebarFooterWrapper = styled('div')<{isMobile: boolean}>`
   flex-direction: row;
   align-items: stretch;
   margin-top: auto;
-  margin-bottom: ${p => (p.isMobile ? space(1) : 0)};
+  margin-bottom: ${p => (p.isMobile ? p.theme.space.md : 0)};
 `;

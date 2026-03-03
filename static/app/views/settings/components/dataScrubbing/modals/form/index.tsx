@@ -475,8 +475,8 @@ const SourceGroup = styled('div')<{isExpanded?: boolean}>`
       border-radius: ${p.theme.radius.md};
       border: 1px solid ${p.theme.tokens.border.primary};
       box-shadow: ${p.theme.dropShadowMedium};
-      margin: ${space(2)} 0 ${space(3)} 0;
-      padding: ${space(2)};
+      margin: ${p.theme.space.xl} 0 ${p.theme.space['2xl']} 0;
+      padding: ${p.theme.space.xl};
     `}
 `;
 

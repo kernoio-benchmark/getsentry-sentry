@@ -19,7 +19,6 @@ import {GroupSummaryWithAutofix} from 'sentry/components/group/groupSummaryWithA
 import Placeholder from 'sentry/components/placeholder';
 import {IconSeer} from 'sentry/icons';
 import {t} from 'sentry/locale';
-import {space} from 'sentry/styles/space';
 import type {Event} from 'sentry/types/event';
 import type {Group} from 'sentry/types/group';
 import type {Project} from 'sentry/types/project';
@@ -260,7 +259,7 @@ const ResourcesContent = styled('div')<{isExpanded: boolean}>`
   position: relative;
   max-height: ${p => (p.isExpanded ? 'none' : '68px')};
   overflow: hidden;
-  padding-bottom: ${p => (p.isExpanded ? space(2) : 0)};
+  padding-bottom: ${p => (p.isExpanded ? p.theme.space.xl : 0)};
 
   ${p =>
     !p.isExpanded &&
