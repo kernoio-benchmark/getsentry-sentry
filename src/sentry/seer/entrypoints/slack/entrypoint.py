@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, TypedDict
 
+from oauthlib.common import urlencode
+
 from sentry import features
 from sentry.constants import ENABLE_SEER_ENHANCED_ALERTS_DEFAULT
 from sentry.locks import locks
@@ -236,7 +238,7 @@ class SlackEntrypoint(SeerEntrypoint[SlackEntrypointCachePayload, SlackExplorerC
     ) -> None:
         organization_id = cache_payload["organization_id"]
         organization = Organization.objects.get(id=organization_id)
-        explorer_link = organization.absolute_url(f"/explore/seer/{run_id}/")
+        explorer_link = organization.absolute_url(query=urlencode({"explorerRunId": run_id}))
 
         data = SeerExplorerResponse(
             run_id=run_id,
