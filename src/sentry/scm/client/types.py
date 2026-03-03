@@ -7,6 +7,10 @@ ProviderName: TypeAlias = Literal["bitbucket", "github", "github_enterprise", "g
 PROVIDER_SET: set[ProviderName] = set(["bitbucket", "github", "github_enterprise", "gitlab"])
 
 ExternalId: TypeAlias = str
+"""
+Identifier whose origin is an external, source-code-management provider. Refers specifically to
+the unique identifier of a repository.
+"""
 
 ResourceId: TypeAlias = str
 """An opaque provider-assigned identifier for a resource (pull request, review, check run, etc.).
@@ -98,18 +102,69 @@ ReviewSide: TypeAlias = Literal["LEFT", "RIGHT"]
 - RIGHT: the head (modified) side of the diff
 """
 
+BranchName: TypeAlias = str
+CommitSHA: TypeAlias = str
+PullRequestState: TypeAlias = Literal["open", "closed"]
+ReviewEvent: TypeAlias = Literal["approve", "change_request", "comment"]
+
+
+class PaginationParams(TypedDict, total=False):
+    """Controls page traversal for list endpoints.
+
+    - cursor: an opaque token returned from a previous page's `next_cursor`
+    - per_page: how many items to return per page
+    """
+
+    cursor: str
+    per_page: int
+
+
+class RequestOptions(TypedDict, total=False):
+    """Transport-level options for single-resource fetches.
+
+    - if_none_match: send an `If-None-Match` header (ETag-based caching)
+    - if_modified_since: send an `If-Modified-Since` header (UTC datetime)
+    """
+
+    if_none_match: str
+    if_modified_since: datetime
+
+
+class ResponseMeta(TypedDict, total=False):
+    """Transport-level metadata attached to a single-resource provider response.
+
+    - etag: the `ETag` header value, usable in a subsequent `if_none_match`
+    - last_modified: UTC datetime parsed from the `Last-Modified` header
+    """
+
+    etag: str
+    last_modified: datetime
+
+
+class PaginatedResponseMeta(TypedDict, total=False):
+    """Transport-level metadata attached to a paginated provider response.
+
+    Carries all fields from `ResponseMeta` plus a required `next_cursor`
+    that callers can pass back to `PaginationParams.cursor` to fetch the
+    next page. `None` means there are no more pages.
+    """
+
+    etag: str
+    last_modified: datetime
+    next_cursor: Required[str | None]
+
 
 class Author(TypedDict):
     """Normalized author identity returned by all SCM providers."""
 
-    id: str
+    id: ResourceId
     username: str
 
 
 class Comment(TypedDict):
     """Provider-agnostic representation of an issue or pull-request comment."""
 
-    id: str
+    id: ResourceId
     body: str | None
     author: Author | None
 
@@ -117,7 +172,7 @@ class Comment(TypedDict):
 class ReactionResult(TypedDict):
     """Provider-agnostic representation of a reaction on an issue, comment, or pull request."""
 
-    id: str
+    id: ResourceId
     content: Reaction
     author: Author | None
 
@@ -125,18 +180,19 @@ class ReactionResult(TypedDict):
 class PullRequestBranch(TypedDict):
     """A branch reference within a pull request (head or base)."""
 
-    sha: str | None
-    ref: str
+    sha: CommitSHA | None
+    ref: BranchName
 
 
 class PullRequest(TypedDict):
     """Provider-agnostic representation of a pull request."""
 
+    # @todo Why do we have two ids here? Confusing.
     id: ResourceId
     number: str
     title: str
     body: str | None
-    state: Literal["open", "closed"]
+    state: PullRequestState
     merged: bool
     html_url: str
     head: PullRequestBranch
@@ -149,11 +205,29 @@ class ActionResult[T](TypedDict):
     Pairs a normalized domain object with the provider name and raw API
     payload. This lets callers work with a stable interface while still
     having access to provider-specific fields when needed.
+
+    The `meta` field carries transport-level metadata such as ETags.
+    Pass an empty dict when the provider does not supply any metadata.
     """
 
     data: T
     type: ProviderName
-    raw: dict[str, Any]
+    raw: Any
+    meta: ResponseMeta
+
+
+class PaginatedActionResult[T](TypedDict):
+    """Wraps a paginated provider response.
+
+    Identical to `ActionResult` but carries a `PaginatedResponseMeta` with a required
+    `page_info`, guaranteeing that callers of list endpoints always have access to pagination
+    state.
+    """
+
+    data: list[T]
+    type: ProviderName
+    raw: Any
+    meta: PaginatedResponseMeta
 
 
 class Repository(TypedDict):
@@ -169,17 +243,17 @@ class Repository(TypedDict):
 class GitRef(TypedDict):
     """A git reference (branch pointer)."""
 
-    ref: str
-    sha: str
+    ref: BranchName
+    sha: CommitSHA
 
 
 class GitBlob(TypedDict):
-    sha: str
+    sha: CommitSHA
 
 
 class FileContent(TypedDict):
     path: str
-    sha: str
+    sha: CommitSHA
     content: str  # base64-encoded
     encoding: str
     size: int
@@ -198,7 +272,7 @@ class CommitFile(TypedDict):
 
 
 class Commit(TypedDict):
-    id: str
+    id: CommitSHA
     message: str
     author: CommitAuthor | None
     files: list[CommitFile] | None
@@ -214,7 +288,7 @@ class TreeEntry(TypedDict):
     path: str
     mode: TreeEntryMode
     type: TreeEntryType
-    sha: str
+    sha: CommitSHA
     size: int | None
 
 
@@ -222,21 +296,21 @@ class InputTreeEntry(TypedDict):
     path: str
     mode: TreeEntryMode
     type: TreeEntryType
-    sha: str | None  # None for deletions
+    sha: CommitSHA | None  # None for deletions
 
 
 class GitTree(TypedDict):
-    sha: str
+    sha: CommitSHA
     tree: list[TreeEntry]
     truncated: bool
 
 
 class GitCommitTree(TypedDict):
-    sha: str
+    sha: CommitSHA
 
 
 class GitCommitObject(TypedDict):
-    sha: str
+    sha: CommitSHA
     tree: GitCommitTree
     message: str
 
@@ -246,12 +320,12 @@ class PullRequestFile(TypedDict):
     status: FileStatus
     patch: str | None
     changes: int
-    sha: str
+    sha: CommitSHA
     previous_filename: str | None
 
 
 class PullRequestCommit(TypedDict):
-    sha: str
+    sha: CommitSHA
     message: str
     author: CommitAuthor | None
 

@@ -122,7 +122,7 @@ def test_issue_comments(switch: Switch, client: SourceCodeManagerRPCClient) -> N
     )["data"]
     assert new_comment["body"] == "Another comment, made through the API."
     assert len(client.get_issue_comments("1")["data"]) == 2
-    client.delete_issue_comment(comment_id=new_comment["id"])
+    client.delete_issue_comment(issue_id="1", comment_id=new_comment["id"])
     assert len(client.get_issue_comments("1")["data"]) == 1
 
 
@@ -131,7 +131,7 @@ def test_issue_comment_reactions(
 ) -> None:
     author = {"id": switch("327146", "150871"), "username": "jacquev6"}
     comment_id = switch("3983150774", "3123861269")
-    reactions = client.get_issue_comment_reactions(comment_id)
+    reactions = client.get_issue_comment_reactions(issue_id="1", comment_id=comment_id)
     assert reactions["data"] == [
         {
             "id": switch("334443540", "43909506"),
@@ -169,29 +169,26 @@ def test_issue_comment_reactions(
             "author": author,
         },
     ]
-    if service == "github":
-        assert len(reactions["raw"]["items"]) == 7
-    else:
-        # One GitLab emoji is not mapped, so it's dropped silently
-        assert len(reactions["raw"]) == 8
-    new_reaction = client.create_issue_comment_reaction(comment_id=comment_id, reaction="rocket")[
-        "data"
-    ]
+    # One GitLab emoji is not mapped, so it's dropped silently
+    assert len(reactions["raw"]) == switch(7, 8)
+    new_reaction = client.create_issue_comment_reaction(
+        issue_id="1", comment_id=comment_id, reaction="rocket"
+    )["data"]
     assert new_reaction["content"] == "rocket"
-    assert len(client.get_issue_comment_reactions(comment_id)["data"]) == 8
-    client.delete_issue_comment_reaction(comment_id=comment_id, reaction_id=new_reaction["id"])
-    assert len(client.get_issue_comment_reactions(comment_id)["data"]) == 7
+    assert len(client.get_issue_comment_reactions(issue_id="1", comment_id=comment_id)["data"]) == 8
+    client.delete_issue_comment_reaction(
+        issue_id="1", comment_id=comment_id, reaction_id=new_reaction["id"]
+    )
+    assert len(client.get_issue_comment_reactions(issue_id="1", comment_id=comment_id)["data"]) == 7
 
 
 def test_pull_request_comments(switch: Switch, client: SourceCodeManagerRPCClient) -> None:
     pull_request_id = switch("2", "1")
     assert client.get_pull_request_comments(pull_request_id)["data"] == [
         {
-            # @todo Why are we using a node_id on GitHub?
-            # This doesn't integrate well with get_pull_request_comment_reactions and related.
-            "id": switch("IC_kwDORRhd7M7tbiJH", "3124015530"),
+            "id": switch("3983417927", "3124015530"),
             "body": "A great comment!",
-            "author": {"id": switch("", "150871"), "username": "jacquev6"},
+            "author": {"id": switch("327146", "150871"), "username": "jacquev6"},
         }
     ]
     new_comment = client.create_pull_request_comment(
@@ -199,15 +196,20 @@ def test_pull_request_comments(switch: Switch, client: SourceCodeManagerRPCClien
     )["data"]
     assert new_comment["body"] == "Another comment, made through the API."
     assert len(client.get_pull_request_comments(pull_request_id)["data"]) == 2
-    client.delete_pull_request_comment(comment_id=new_comment["id"])
+    client.delete_pull_request_comment(
+        pull_request_id=pull_request_id, comment_id=new_comment["id"]
+    )
     assert len(client.get_pull_request_comments(pull_request_id)["data"]) == 1
 
 
 def test_pull_request_comment_reactions(
     service: Service, switch: Switch, client: SourceCodeManagerRPCClient
 ) -> None:
+    pull_request_id = switch("2", "1")
     comment_id = switch("3983417927", "3124015530")
-    reactions = client.get_pull_request_comment_reactions(comment_id)
+    reactions = client.get_pull_request_comment_reactions(
+        pull_request_id=pull_request_id, comment_id=comment_id
+    )
     assert reactions["data"] == [
         {
             "id": switch("334495774", "43921665"),
@@ -215,20 +217,31 @@ def test_pull_request_comment_reactions(
             "author": {"id": switch("327146", "150871"), "username": "jacquev6"},
         }
     ]
-    if service == "github":
-        assert len(reactions["raw"]["items"]) == 1
-    else:
-        # One GitLab emoji is not mapped, so it's dropped silently
-        assert len(reactions["raw"]) == 2
+    # One GitLab emoji is not mapped, so it's dropped silently
+    assert len(reactions["raw"]) == switch(1, 2)
     new_reaction = client.create_pull_request_comment_reaction(
-        comment_id=comment_id, reaction="rocket"
+        pull_request_id=pull_request_id, comment_id=comment_id, reaction="rocket"
     )["data"]
     assert new_reaction["content"] == "rocket"
-    assert len(client.get_pull_request_comment_reactions(comment_id)["data"]) == 2
-    client.delete_pull_request_comment_reaction(
-        comment_id=comment_id, reaction_id=new_reaction["id"]
+    assert (
+        len(
+            client.get_pull_request_comment_reactions(
+                pull_request_id=pull_request_id, comment_id=comment_id
+            )["data"]
+        )
+        == 2
     )
-    assert len(client.get_pull_request_comment_reactions(comment_id)["data"]) == 1
+    client.delete_pull_request_comment_reaction(
+        pull_request_id=pull_request_id, comment_id=comment_id, reaction_id=new_reaction["id"]
+    )
+    assert (
+        len(
+            client.get_pull_request_comment_reactions(
+                pull_request_id=pull_request_id, comment_id=comment_id
+            )["data"]
+        )
+        == 1
+    )
 
 
 def test_issue_reactions(
@@ -248,11 +261,8 @@ def test_issue_reactions(
             "author": {"id": switch("327146", "150871"), "username": "jacquev6"},
         },
     ]
-    if service == "github":
-        assert len(reactions["raw"]["items"]) == 2
-    else:
-        # One GitLab emoji is not mapped, so it's dropped silently
-        assert len(reactions["raw"]) == 3
+    # One GitLab emoji is not mapped, so it's dropped silently
+    assert len(reactions["raw"]) == switch(2, 3)
     new_reaction = client.create_issue_reaction(issue_id=issue_id, reaction="rocket")["data"]
     assert new_reaction["content"] == "rocket"
     assert len(client.get_issue_reactions(issue_id)["data"]) == 3
@@ -272,11 +282,8 @@ def test_pull_request_reactions(
             "author": {"id": switch("327146", "150871"), "username": "jacquev6"},
         }
     ]
-    if service == "github":
-        assert len(reactions["raw"]["items"]) == 1
-    else:
-        # One GitLab emoji is not mapped, so it's dropped silently
-        assert len(reactions["raw"]) == 2
+    # One GitLab emoji is not mapped, so it's dropped silently
+    assert len(reactions["raw"]) == switch(1, 2)
     new_reaction = client.create_pull_request_reaction(
         pull_request_id=pull_request_id, reaction="rocket"
     )["data"]

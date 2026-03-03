@@ -7,6 +7,7 @@ from sentry.scm.errors import SCMProviderException
 from sentry.scm.types import (
     ActionResult,
     Author,
+    BranchName,
     BuildConclusion,
     BuildStatus,
     CheckRun,
@@ -14,24 +15,31 @@ from sentry.scm.types import (
     Comment,
     Commit,
     CommitAuthor,
-    CommitComparison,
+    CommitSHA,
     FileContent,
     GitBlob,
     GitCommitObject,
     GitRef,
     GitTree,
     InputTreeEntry,
+    PaginatedActionResult,
+    PaginatedResponseMeta,
+    PaginationParams,
     PullRequest,
     PullRequestBranch,
     PullRequestCommit,
     PullRequestFile,
+    PullRequestState,
     Reaction,
     ReactionResult,
     Referrer,
     Repository,
+    RequestOptions,
+    ResourceId,
     Review,
     ReviewComment,
     ReviewCommentInput,
+    ReviewEvent,
     ReviewSide,
 )
 from sentry.shared_integrations.exceptions import ApiError
@@ -41,6 +49,8 @@ from sentry.shared_integrations.exceptions import ApiError
 #       remain unchanged.
 REFERRER_ALLOCATION: dict[Referrer, int] = {"shared": 4500, "emerge": 500}
 
+# Placeholder pagination meta until the GitLab client supports pagination.
+_DEFAULT_PAGINATED_META: PaginatedResponseMeta = PaginatedResponseMeta(next_cursor=None)
 
 REACTION_MAPPING: list[tuple[Reaction, str]] = [
     ("+1", "thumbsup"),
@@ -96,8 +106,13 @@ class GitLabProvider:
 
     # @todo Factorize mapping from raw to return types
 
+    # @todo Move down to match GitHub provider
     @catch_provider_exception
-    def get_pull_request(self, pull_request_id: str) -> ActionResult[PullRequest]:
+    def get_pull_request(
+        self,
+        pull_request_id: str,
+        request_options: RequestOptions | None = None,
+    ) -> ActionResult[PullRequest]:
         raw = self.client.get_merge_request(self._repo_id, pull_request_id)
         return ActionResult(
             data=PullRequest(
@@ -116,12 +131,18 @@ class GitLabProvider:
             ),
             type="gitlab",
             raw=raw,
+            meta={},
         )
 
     @catch_provider_exception
-    def get_issue_comments(self, issue_id: str) -> ActionResult[list[Comment]]:
+    def get_issue_comments(
+        self,
+        issue_id: str,
+        pagination: PaginationParams | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[Comment]:
         raw = self.client.get_issue_notes(self._repo_id, issue_id)
-        return ActionResult(
+        return PaginatedActionResult(
             data=[
                 Comment(
                     id=note["id"],
@@ -132,6 +153,7 @@ class GitLabProvider:
             ],
             type="gitlab",
             raw=raw,
+            meta=_DEFAULT_PAGINATED_META,
         )
 
     @catch_provider_exception
@@ -145,17 +167,22 @@ class GitLabProvider:
             ),
             type="gitlab",
             raw=raw,
+            meta={},
         )
 
     @catch_provider_exception
-    def delete_issue_comment(self, comment_id: str) -> None:
-        issue_id = "1"  # @todo GitLab needs the issue ID to delete a note
+    def delete_issue_comment(self, issue_id: str, comment_id: str) -> None:
         self.client.delete_issue_note(self._repo_id, issue_id, comment_id)
 
     @catch_provider_exception
-    def get_pull_request_comments(self, pull_request_id: str) -> ActionResult[list[Comment]]:
+    def get_pull_request_comments(
+        self,
+        pull_request_id: str,
+        pagination: PaginationParams | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[Comment]:
         raw = self.client.get_merge_request_notes(self._repo_id, pull_request_id)
-        return ActionResult(
+        return PaginatedActionResult(
             data=[
                 Comment(
                     id=note["id"],
@@ -166,6 +193,7 @@ class GitLabProvider:
             ],
             type="gitlab",
             raw=raw,
+            meta=_DEFAULT_PAGINATED_META,
         )
 
     @catch_provider_exception
@@ -179,18 +207,23 @@ class GitLabProvider:
             ),
             type="gitlab",
             raw=raw,
+            meta={},
         )
 
     @catch_provider_exception
-    def delete_pull_request_comment(self, comment_id: str) -> None:
-        pull_request_id = "1"  # @todo GitLab needs the MR ID to delete a note
+    def delete_pull_request_comment(self, pull_request_id: str, comment_id: str) -> None:
         self.client.delete_merge_request_note(self._repo_id, pull_request_id, comment_id)
 
     @catch_provider_exception
-    def get_issue_comment_reactions(self, comment_id: str) -> ActionResult[list[ReactionResult]]:
-        issue_id = "1"  # @todo GitLab needs the issue ID to get note awards
+    def get_issue_comment_reactions(
+        self,
+        issue_id: str,
+        comment_id: str,
+        pagination: PaginationParams | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[ReactionResult]:
         raw = self.client.get_issue_note_awards(self._repo_id, issue_id, comment_id)
-        return ActionResult(
+        return PaginatedActionResult(
             data=[
                 ReactionResult(
                     id=award["id"],
@@ -202,13 +235,13 @@ class GitLabProvider:
             ],
             type="gitlab",
             raw=raw,
+            meta=_DEFAULT_PAGINATED_META,
         )
 
     @catch_provider_exception
     def create_issue_comment_reaction(
-        self, comment_id: str, reaction: Reaction
+        self, issue_id: str, comment_id: str, reaction: Reaction
     ) -> ActionResult[ReactionResult]:
-        issue_id = "1"  # @todo GitLab needs the issue ID to create a note award
         raw = self.client.create_issue_note_award(
             self._repo_id, issue_id, comment_id, AWARD_NAME_BY_REACTION[reaction]
         )
@@ -220,20 +253,26 @@ class GitLabProvider:
             ),
             type="gitlab",
             raw=raw,
+            meta={},
         )
 
     @catch_provider_exception
-    def delete_issue_comment_reaction(self, comment_id: str, reaction_id: str) -> None:
-        issue_id = "1"  # @todo GitLab needs the issue ID to delete a note award
+    def delete_issue_comment_reaction(
+        self, issue_id: str, comment_id: str, reaction_id: str
+    ) -> None:
         self.client.delete_issue_note_award(self._repo_id, issue_id, comment_id, reaction_id)
 
     @catch_provider_exception
     def get_pull_request_comment_reactions(
-        self, comment_id: str
-    ) -> ActionResult[list[ReactionResult]]:
+        self,
+        pull_request_id: str,
+        comment_id: str,
+        pagination: PaginationParams | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[ReactionResult]:
         pull_request_id = "1"  # @todo GitLab needs the MR ID to get note awards
         raw = self.client.get_merge_request_note_awards(self._repo_id, pull_request_id, comment_id)
-        return ActionResult(
+        return PaginatedActionResult(
             data=[
                 ReactionResult(
                     id=award["id"],
@@ -245,11 +284,12 @@ class GitLabProvider:
             ],
             type="gitlab",
             raw=raw,
+            meta=_DEFAULT_PAGINATED_META,
         )
 
     @catch_provider_exception
     def create_pull_request_comment_reaction(
-        self, comment_id: str, reaction: Reaction
+        self, pull_request_id: str, comment_id: str, reaction: Reaction
     ) -> ActionResult[ReactionResult]:
         pull_request_id = "1"  # @todo GitLab needs the MR ID to create a note award
         raw = self.client.create_merge_request_note_award(
@@ -263,19 +303,26 @@ class GitLabProvider:
             ),
             type="gitlab",
             raw=raw,
+            meta={},
         )
 
     @catch_provider_exception
-    def delete_pull_request_comment_reaction(self, comment_id: str, reaction_id: str) -> None:
-        pull_request_id = "1"  # @todo GitLab needs the MR ID to delete a note award
+    def delete_pull_request_comment_reaction(
+        self, pull_request_id: str, comment_id: str, reaction_id: str
+    ) -> None:
         self.client.delete_merge_request_note_award(
             self._repo_id, pull_request_id, comment_id, reaction_id
         )
 
     @catch_provider_exception
-    def get_issue_reactions(self, issue_id: str) -> ActionResult[list[ReactionResult]]:
+    def get_issue_reactions(
+        self,
+        issue_id: str,
+        pagination: PaginationParams | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[ReactionResult]:
         raw = self.client.get_issue_awards(self._repo_id, issue_id)
-        return ActionResult(
+        return PaginatedActionResult(
             data=[
                 ReactionResult(
                     id=award["id"],
@@ -287,6 +334,7 @@ class GitLabProvider:
             ],
             type="gitlab",
             raw=raw,
+            meta=_DEFAULT_PAGINATED_META,
         )
 
     @catch_provider_exception
@@ -304,6 +352,7 @@ class GitLabProvider:
             ),
             type="gitlab",
             raw=raw,
+            meta={},
         )
 
     @catch_provider_exception
@@ -312,10 +361,13 @@ class GitLabProvider:
 
     @catch_provider_exception
     def get_pull_request_reactions(
-        self, pull_request_id: str
-    ) -> ActionResult[list[ReactionResult]]:
+        self,
+        pull_request_id: str,
+        pagination: PaginationParams | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[ReactionResult]:
         raw = self.client.get_merge_request_awards(self._repo_id, pull_request_id)
-        return ActionResult(
+        return PaginatedActionResult(
             data=[
                 ReactionResult(
                     id=award["id"],
@@ -327,6 +379,7 @@ class GitLabProvider:
             ],
             type="gitlab",
             raw=raw,
+            meta=_DEFAULT_PAGINATED_META,
         )
 
     @catch_provider_exception
@@ -344,6 +397,7 @@ class GitLabProvider:
             ),
             type="gitlab",
             raw=raw,
+            meta={},
         )
 
     @catch_provider_exception
@@ -351,15 +405,19 @@ class GitLabProvider:
         self.client.delete_merge_request_award(self._repo_id, pull_request_id, reaction_id)
 
     @catch_provider_exception
-    def get_branch(self, branch: str) -> ActionResult[GitRef]:
+    def get_branch(
+        self,
+        branch: BranchName,
+        request_options: RequestOptions | None = None,
+    ) -> ActionResult[GitRef]:
         raise NotImplementedError("get_branch")
 
     @catch_provider_exception
-    def create_branch(self, branch: str, sha: str) -> ActionResult[GitRef]:
+    def create_branch(self, branch: BranchName, sha: CommitSHA) -> ActionResult[GitRef]:
         raise NotImplementedError("create_branch")
 
     @catch_provider_exception
-    def update_branch(self, branch: str, sha: str, force: bool = False) -> None:
+    def update_branch(self, branch: BranchName, sha: CommitSHA, force: bool = False) -> None:
         raise NotImplementedError("update_branch")
 
     @catch_provider_exception
@@ -367,70 +425,117 @@ class GitLabProvider:
         raise NotImplementedError("create_git_blob")
 
     @catch_provider_exception
-    def get_file_content(self, path: str, ref: str | None = None) -> ActionResult[FileContent]:
+    def get_file_content(
+        self,
+        path: str,
+        ref: str | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> ActionResult[FileContent]:
         raise NotImplementedError("get_file_content")
 
     @catch_provider_exception
-    def get_commit(self, sha: str) -> ActionResult[Commit]:
+    def get_commit(
+        self,
+        sha: CommitSHA,
+        request_options: RequestOptions | None = None,
+    ) -> ActionResult[Commit]:
         raise NotImplementedError("get_commit")
 
     @catch_provider_exception
     def get_commits(
         self,
-        sha: str | None = None,
+        sha: CommitSHA | None = None,
         path: str | None = None,
-    ) -> ActionResult[list[Commit]]:
+        pagination: PaginationParams | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[Commit]:
         raw_commits = self.client.get_last_commits(self._repo_id, end_sha=sha)
-        return ActionResult(
+        return PaginatedActionResult(
             data=[map_commit(c) for c in raw_commits],
             type="gitlab",
             raw={"items": raw_commits},
+            meta=_DEFAULT_PAGINATED_META,
         )
 
     @catch_provider_exception
-    def compare_commits(self, start_sha: str, end_sha: str) -> ActionResult[CommitComparison]:
+    def compare_commits(
+        self,
+        start_sha: CommitSHA,
+        end_sha: CommitSHA,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[Commit]:
         raise NotImplementedError("compare_commits")
 
     @catch_provider_exception
-    def get_tree(self, tree_sha: str, recursive: bool = True) -> ActionResult[GitTree]:
+    def get_tree(
+        self,
+        tree_sha: CommitSHA,
+        recursive: bool = True,
+        request_options: RequestOptions | None = None,
+    ) -> ActionResult[GitTree]:
         raise NotImplementedError("get_tree")
 
     @catch_provider_exception
-    def get_git_commit(self, sha: str) -> ActionResult[GitCommitObject]:
+    def get_git_commit(
+        self,
+        sha: CommitSHA,
+        request_options: RequestOptions | None = None,
+    ) -> ActionResult[GitCommitObject]:
         raise NotImplementedError("get_git_commit")
 
     @catch_provider_exception
     def create_git_tree(
-        self, tree: list[InputTreeEntry], base_tree: str | None = None
+        self,
+        tree: list[InputTreeEntry],
+        base_tree: CommitSHA | None = None,
     ) -> ActionResult[GitTree]:
         raise NotImplementedError("create_git_tree")
 
     @catch_provider_exception
     def create_git_commit(
-        self, message: str, tree_sha: str, parent_shas: list[str]
+        self,
+        message: str,
+        tree_sha: CommitSHA,
+        parent_shas: list[CommitSHA],
     ) -> ActionResult[GitCommitObject]:
         raise NotImplementedError("create_git_commit")
 
     @catch_provider_exception
-    def get_pull_request_files(self, pull_request_id: str) -> ActionResult[list[PullRequestFile]]:
+    def get_pull_request_files(
+        self,
+        pull_request_id: str,
+        pagination: PaginationParams | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[PullRequestFile]:
         raise NotImplementedError("get_pull_request_files")
 
     @catch_provider_exception
     def get_pull_request_commits(
-        self, pull_request_id: str
-    ) -> ActionResult[list[PullRequestCommit]]:
+        self,
+        pull_request_id: str,
+        pagination: PaginationParams | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[PullRequestCommit]:
         raise NotImplementedError("get_pull_request_commits")
 
     @catch_provider_exception
-    def get_pull_request_diff(self, pull_request_id: str) -> ActionResult[str]:
+    def get_pull_request_diff(
+        self,
+        pull_request_id: str,
+        request_options: RequestOptions | None = None,
+    ) -> ActionResult[str]:
         raise NotImplementedError("get_pull_request_diff")
 
     @catch_provider_exception
     def get_pull_requests(
-        self, state: str = "open", head: str | None = None
-    ) -> ActionResult[list[PullRequest]]:
+        self,
+        state: PullRequestState | None = "open",  # @todo
+        head: BranchName | None = None,  # @todo
+        pagination: PaginationParams | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[PullRequest]:
         raw = self.client.get_merge_requests(self._repo_id)
-        return ActionResult(
+        return PaginatedActionResult(
             data=[
                 PullRequest(
                     id=mr["id"],
@@ -450,6 +555,7 @@ class GitLabProvider:
             ],
             type="gitlab",
             raw=raw,
+            meta=_DEFAULT_PAGINATED_META,
         )
 
     @catch_provider_exception
@@ -486,6 +592,7 @@ class GitLabProvider:
             ),
             type="gitlab",
             raw=raw,
+            meta={},
         )
 
     @catch_provider_exception
@@ -494,7 +601,7 @@ class GitLabProvider:
         pull_request_id: str,
         title: str | None = None,
         body: str | None = None,
-        state: str | None = None,
+        state: PullRequestState | None = None,
     ) -> ActionResult[PullRequest]:
         data = {}
         if title is not None:
@@ -526,6 +633,7 @@ class GitLabProvider:
             ),
             type="gitlab",
             raw=raw,
+            meta={},
         )
 
     @catch_provider_exception
@@ -533,25 +641,57 @@ class GitLabProvider:
         raise NotImplementedError("request_review")
 
     @catch_provider_exception
-    def create_review_comment(
+    def create_review_comment_file(
+        self,
+        pull_request_id: str,
+        commit_id: CommitSHA,
+        body: str,
+        path: str,
+        side: ReviewSide,
+    ) -> ActionResult[ReviewComment]:
+        raise NotImplementedError("create_review_comment_file")
+
+    @catch_provider_exception
+    def create_review_comment_line(
+        self,
+        pull_request_id: str,
+        commit_id: CommitSHA,
+        body: str,
+        path: str,
+        line: int,
+        side: ReviewSide,
+    ) -> ActionResult[ReviewComment]:
+        raise NotImplementedError("create_review_comment_line")
+
+    @catch_provider_exception
+    def create_review_comment_multiline(
+        self,
+        pull_request_id: str,
+        commit_id: CommitSHA,
+        body: str,
+        path: str,
+        start_line: int,
+        start_side: ReviewSide,
+        end_line: int,
+        end_side: ReviewSide,
+    ) -> ActionResult[ReviewComment]:
+        raise NotImplementedError("create_review_comment_multiline")
+
+    @catch_provider_exception
+    def create_review_comment_reply(
         self,
         pull_request_id: str,
         body: str,
-        commit_sha: str,
-        path: str,
-        line: int | None = None,
-        side: ReviewSide | None = None,
-        start_line: int | None = None,
-        start_side: ReviewSide | None = None,
+        comment_id: str,
     ) -> ActionResult[ReviewComment]:
-        raise NotImplementedError("create_review_comment")
+        raise NotImplementedError("create_review_comment_reply")
 
     @catch_provider_exception
     def create_review(
         self,
         pull_request_id: str,
-        commit_sha: str,
-        event: str,
+        commit_sha: CommitSHA,
+        event: ReviewEvent,
         comments: list[ReviewCommentInput],
         body: str | None = None,
     ) -> ActionResult[Review]:
@@ -561,7 +701,7 @@ class GitLabProvider:
     def create_check_run(
         self,
         name: str,
-        head_sha: str,
+        head_sha: CommitSHA,
         status: BuildStatus | None = None,
         conclusion: BuildConclusion | None = None,
         external_id: str | None = None,
@@ -572,13 +712,17 @@ class GitLabProvider:
         raise NotImplementedError("create_check_run")
 
     @catch_provider_exception
-    def get_check_run(self, check_run_id: str) -> ActionResult[CheckRun]:
+    def get_check_run(
+        self,
+        check_run_id: ResourceId,
+        request_options: RequestOptions | None = None,
+    ) -> ActionResult[CheckRun]:
         raise NotImplementedError("get_check_run")
 
     @catch_provider_exception
     def update_check_run(
         self,
-        check_run_id: str,
+        check_run_id: ResourceId,
         status: BuildStatus | None = None,
         conclusion: BuildConclusion | None = None,
         output: CheckRunOutput | None = None,

@@ -142,6 +142,7 @@ def test_additional_fields_in_rpc_response_are_ignored(client: SourceCodeManager
                 ],
                 "type": "github",
                 "raw": {"foo": "bar"},
+                "meta": {"next_cursor": None, "biz": "bir"},
                 "bar": "baz",
             }
         },
@@ -156,6 +157,9 @@ def test_additional_fields_in_rpc_response_are_ignored(client: SourceCodeManager
         ],
         "type": "github",
         "raw": {"foo": "bar"},
+        "meta": {
+            "next_cursor": None,
+        },
     }
 
     responses.assert_call_count(f"{base_url}/{prefix}/get_issue_comments_v1/", 1)
@@ -202,7 +206,7 @@ class SimpleSuccessTest(NamedTuple):
     [
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.get_issue_comments,
-            {"issue_id": "test-issue-id"},
+            {"issue_id": "test-issue-id", "pagination": None, "request_options": None},
             f"{base_url}/{prefix}/get_issue_comments_v1/",
             [
                 {
@@ -230,16 +234,15 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.get_pull_request,
-            {"pull_request_id": "pull-request-id"},
+            {"pull_request_id": "pull-request-id", "request_options": None},
             f"{base_url}/{prefix}/get_pull_request_v1/",
             {
                 "id": "1",
-                "number": 2,
+                "number": "2",
                 "title": "test pr",
                 "body": "test pr body",
                 "state": "open",
                 "merged": False,
-                "url": "http://example.com/pr",
                 "html_url": "http://example.com/pr",
                 "head": {"sha": "head-sha", "ref": "head-ref"},
                 "base": {"sha": "base-sha", "ref": "base-ref"},
@@ -247,7 +250,7 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.get_pull_request_comments,
-            {"pull_request_id": "pull-request-id"},
+            {"pull_request_id": "pull-request-id", "pagination": None, "request_options": None},
             f"{base_url}/{prefix}/get_pull_request_comments_v1/",
             [
                 {
@@ -275,7 +278,12 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.get_issue_comment_reactions,
-            {"issue_id": "issue-id", "comment_id": "comment-id"},
+            {
+                "issue_id": "issue-id",
+                "comment_id": "comment-id",
+                "pagination": None,
+                "request_options": None,
+            },
             f"{base_url}/{prefix}/get_issue_comment_reactions_v1/",
             [
                 {
@@ -303,7 +311,12 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.get_pull_request_comment_reactions,
-            {"pull_request_id": "pull-request-id", "comment_id": "comment-id"},
+            {
+                "pull_request_id": "pull-request-id",
+                "comment_id": "comment-id",
+                "pagination": None,
+                "request_options": None,
+            },
             f"{base_url}/{prefix}/get_pull_request_comment_reactions_v1/",
             [
                 {
@@ -335,7 +348,7 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.get_issue_reactions,
-            {"issue_id": "issue-id"},
+            {"issue_id": "issue-id", "pagination": None, "request_options": None},
             f"{base_url}/{prefix}/get_issue_reactions_v1/",
             [
                 {
@@ -363,7 +376,7 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.get_pull_request_reactions,
-            {"pull_request_id": "pull-request-id"},
+            {"pull_request_id": "pull-request-id", "pagination": None, "request_options": None},
             f"{base_url}/{prefix}/get_pull_request_reactions_v1/",
             [
                 {
@@ -391,7 +404,7 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.get_branch,
-            {"branch": "branch-name"},
+            {"branch": "branch-name", "request_options": None},
             f"{base_url}/{prefix}/get_branch_v1/",
             {"ref": "ref", "sha": "sha"},
         ),
@@ -415,7 +428,7 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.get_file_content,
-            {"path": "file-path", "ref": "ref"},
+            {"path": "file-path", "ref": "ref", "request_options": None},
             f"{base_url}/{prefix}/get_file_content_v1/",
             {
                 "path": "file-path",
@@ -427,7 +440,7 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.get_commit,
-            {"sha": "sha"},
+            {"sha": "sha", "request_options": None},
             f"{base_url}/{prefix}/get_commit_v1/",
             {
                 "id": "sha",
@@ -452,7 +465,7 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.get_commits,
-            {"sha": None, "path": None},
+            {"sha": None, "path": None, "pagination": None, "request_options": None},
             f"{base_url}/{prefix}/get_commits_v1/",
             [
                 {
@@ -481,46 +494,37 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.compare_commits,
-            {"start_sha": "start", "end_sha": "end"},
+            {"start_sha": "start", "end_sha": "end", "request_options": None},
             f"{base_url}/{prefix}/compare_commits_v1/",
-            {
-                "ahead_by": 1,
-                "behind_by": 2,
-                "commits": [
-                    {
-                        "id": "sha",
-                        "message": "message",
-                        "author": {
-                            "name": "author",
-                            "email": "author@example.com",
-                            "date": datetime.datetime(
-                                2024, 6, 1, 0, 0, tzinfo=datetime.timezone.utc
-                            ),
-                        },
-                        "files": [{"filename": "filename", "status": "changed", "patch": "patch"}],
-                    }
-                ],
-            },
-            {
-                "ahead_by": 1,
-                "behind_by": 2,
-                "commits": [
-                    {
-                        "id": "sha",
-                        "message": "message",
-                        "author": {
-                            "name": "author",
-                            "email": "author@example.com",
-                            "date": "2024-06-01T00:00:00Z",
-                        },
-                        "files": [{"filename": "filename", "status": "changed", "patch": "patch"}],
-                    }
-                ],
-            },
+            [
+                {
+                    "id": "sha",
+                    "message": "message",
+                    "author": {
+                        "name": "author",
+                        "email": "author@example.com",
+                        "date": datetime.datetime(2024, 6, 1, 0, 0, tzinfo=datetime.timezone.utc),
+                    },
+                    "files": [{"filename": "filename", "status": "changed", "patch": "patch"}],
+                }
+            ],
+            [
+                {
+                    "id": "sha",
+                    "message": "message",
+                    "author": {
+                        "name": "author",
+                        "email": "author@example.com",
+                        "date": "2024-06-01T00:00:00Z",
+                    },
+                    "files": [{"filename": "filename", "status": "changed", "patch": "patch"}],
+                }
+            ],
+            # },
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.get_tree,
-            {"tree_sha": "sha", "recursive": True},
+            {"tree_sha": "sha", "recursive": True, "request_options": None},
             f"{base_url}/{prefix}/get_tree_v1/",
             {
                 "sha": "sha1",
@@ -538,7 +542,7 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.get_git_commit,
-            {"sha": "sha"},
+            {"sha": "sha", "request_options": None},
             f"{base_url}/{prefix}/get_git_commit_v1/",
             {"sha": "sha", "tree": {"sha": "tree-sha"}, "message": "message"},
         ),
@@ -571,7 +575,7 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.get_pull_request_files,
-            {"pull_request_id": "pull-request-id"},
+            {"pull_request_id": "pull-request-id", "pagination": None, "request_options": None},
             f"{base_url}/{prefix}/get_pull_request_files_v1/",
             [
                 {
@@ -586,7 +590,7 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.get_pull_request_commits,
-            {"pull_request_id": "pr-id"},
+            {"pull_request_id": "pr-id", "pagination": None, "request_options": None},
             f"{base_url}/{prefix}/get_pull_request_commits_v1/",
             [
                 {
@@ -613,23 +617,22 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.get_pull_request_diff,
-            {"pull_request_id": "pr-id"},
+            {"pull_request_id": "pr-id", "request_options": None},
             f"{base_url}/{prefix}/get_pull_request_diff_v1/",
             "diff content",
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.get_pull_requests,
-            {"state": "open", "head": None},
+            {"state": "open", "head": None, "pagination": None, "request_options": None},
             f"{base_url}/{prefix}/get_pull_requests_v1/",
             [
                 {
                     "id": "1",
-                    "number": 2,
+                    "number": "2",
                     "title": "test pr",
                     "body": "test pr body",
                     "state": "open",
                     "merged": False,
-                    "url": "http://example.com/pr",
                     "html_url": "http://example.com/pr",
                     "head": {"sha": "head-sha", "ref": "head-ref"},
                     "base": {"sha": "base-sha", "ref": "base-ref"},
@@ -642,12 +645,11 @@ class SimpleSuccessTest(NamedTuple):
             f"{base_url}/{prefix}/create_pull_request_v1/",
             {
                 "id": "1",
-                "number": 2,
+                "number": "2",
                 "title": "test pr",
                 "body": "test pr body",
                 "state": "open",
                 "merged": False,
-                "url": "http://example.com/pr",
                 "html_url": "http://example.com/pr",
                 "head": {"sha": "head-sha", "ref": "head-ref"},
                 "base": {"sha": "base-sha", "ref": "base-ref"},
@@ -659,12 +661,11 @@ class SimpleSuccessTest(NamedTuple):
             f"{base_url}/{prefix}/update_pull_request_v1/",
             {
                 "id": "1",
-                "number": 2,
+                "number": "2",
                 "title": "test pr",
                 "body": "test pr body",
                 "state": "open",
                 "merged": False,
-                "url": "http://example.com/pr",
                 "html_url": "http://example.com/pr",
                 "head": {"sha": "head-sha", "ref": "head-ref"},
                 "base": {"sha": "base-sha", "ref": "base-ref"},
@@ -720,8 +721,8 @@ class SimpleSuccessTest(NamedTuple):
             SourceCodeManagerRPCClient.create_review_comment_reply,
             {
                 "pull_request_id": "pr-id",
-                "comment_id": "1",
                 "body": "body",
+                "comment_id": "1",
             },
             f"{base_url}/{prefix}/create_review_comment_reply_v1/",
             {"id": "73", "html_url": "http://blah", "path": "path", "body": "comment body"},
@@ -769,7 +770,7 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.get_check_run,
-            {"check_run_id": "chk-id"},
+            {"check_run_id": "chk-id", "request_options": None},
             f"{base_url}/{prefix}/get_check_run_v1/",
             {
                 "id": "73",
@@ -816,6 +817,10 @@ def test_simple_success(
     client: SourceCodeManagerRPCClient,
     param: SimpleSuccessTest,
 ) -> None:
+    if "pagination" in param.args or "compare_commits_v1" in param.expected_url:
+        meta = {"next_cursor": None}
+    else:
+        meta = {}
     if param.data is None:
         expected_result = None
     else:
@@ -823,11 +828,17 @@ def test_simple_success(
             "type": "github",
             "raw": {"foo": "bar"},
             "data": param.data,
+            "meta": meta,
         }
     if param.request_data is None:
         body_data = expected_result
     else:
-        body_data = {"type": "github", "raw": {"foo": "bar"}, "data": param.request_data}
+        body_data = {
+            "type": "github",
+            "raw": {"foo": "bar"},
+            "data": param.request_data,
+            "meta": meta,
+        }
     responses.add(
         responses.POST,
         param.expected_url,

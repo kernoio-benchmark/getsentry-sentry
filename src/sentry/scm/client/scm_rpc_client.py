@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+from datetime import datetime
 from enum import Enum
 from typing import Any, TypedDict
 
@@ -13,29 +14,39 @@ from .errors import SCMCodedError, SCMError, SCMProviderException, SCMUnhandledE
 from .private import parsers
 from .types import (
     ActionResult,
+    BranchName,
     BuildConclusion,
     BuildStatus,
     CheckRun,
     CheckRunOutput,
     Comment,
     Commit,
-    CommitComparison,
+    CommitSHA,
     FileContent,
     GitBlob,
     GitCommitObject,
     GitRef,
     GitTree,
     InputTreeEntry,
+    PaginatedActionResult,
+    PaginatedResponseMeta,
+    PaginationParams,
     ProviderName,
     PullRequest,
     PullRequestCommit,
     PullRequestFile,
+    PullRequestState,
     Reaction,
     ReactionResult,
     RepositoryId,
+    RequestOptions,
+    ResourceId,
+    ResponseMeta,
     Review,
     ReviewComment,
     ReviewCommentInput,
+    ReviewEvent,
+    ReviewSide,
 )
 
 # Implementation details
@@ -76,11 +87,23 @@ class _ResponseBodyData(pydantic.BaseModel):
     data: Any
     type: ProviderName
     raw: Any
+    meta: Any
 
 
 class _ResponseBody(pydantic.BaseModel):
     data: _ResponseBodyData | None | _Unset = _Unset.UNSET
     errors: list[_Error] | _Unset = _Unset.UNSET
+
+
+class _ResponseMeta(pydantic.BaseModel):
+    etag: str | _Unset = _Unset.UNSET
+    last_modified: datetime | _Unset = _Unset.UNSET
+
+
+class _PaginatedResponseMeta(pydantic.BaseModel):
+    etag: str | _Unset = _Unset.UNSET
+    last_modified: datetime | _Unset = _Unset.UNSET
+    next_cursor: str | None
 
 
 # Client interface
@@ -210,18 +233,21 @@ class SourceCodeManagerRPCClient:
 
         def to_list[T](
             self, item_parser: type[pydantic.BaseModel], item_type: type[T]
-        ) -> ActionResult[list[T]]:
+        ) -> PaginatedActionResult[T]:
             if self.response_body_data is None:
                 raise self._unhandled_return_type()
             if not isinstance(self.response_body_data.data, list):
                 raise self._unhandled_return_type()
-            return ActionResult[list[T]](
+            return PaginatedActionResult[T](
                 data=[
                     self._convert_item(item, item_parser, item_type)
                     for item in self.response_body_data.data
                 ],
                 type=self.response_body_data.type,
                 raw=self.response_body_data.raw,
+                meta=self._convert_item(
+                    self.response_body_data.meta, _PaginatedResponseMeta, PaginatedResponseMeta
+                ),
             )
 
         def to_item[T](
@@ -233,6 +259,7 @@ class SourceCodeManagerRPCClient:
                 data=self._convert_item(self.response_body_data.data, item_parser, item_type),
                 type=self.response_body_data.type,
                 raw=self.response_body_data.raw,
+                meta=self._convert_item(self.response_body_data.meta, _ResponseMeta, ResponseMeta),
             )
 
         def to_none(self) -> None:
@@ -249,6 +276,7 @@ class SourceCodeManagerRPCClient:
                 data=self.response_body_data.data,
                 type=self.response_body_data.type,
                 raw=self.response_body_data.raw,
+                meta=self._convert_item(self.response_body_data.meta, _ResponseMeta, ResponseMeta),
             )
 
         def _convert_item[T](
@@ -258,7 +286,7 @@ class SourceCodeManagerRPCClient:
                 parsed = pydantic.parse_obj_as(item_parser, item)
             except pydantic.ValidationError as e:
                 raise self._unhandled_return_type() from e
-            return item_type(**parsed.dict())
+            return item_type(**{k: v for (k, v) in parsed.dict().items() if v is not _Unset.UNSET})
 
     def _call(self, method: str, method_args: dict[str, Any]) -> _Response:
         url = f"{self._base_url}/{self.API_PREFIX}/{method}/"
@@ -270,11 +298,17 @@ class SourceCodeManagerRPCClient:
         }
         return self._Response(self._session.post(url, data=body, headers=headers))
 
-    def get_issue_comments(self, issue_id: str) -> ActionResult[list[Comment]]:
+    def get_issue_comments(
+        self,
+        issue_id: str,
+        pagination: PaginationParams | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[Comment]:
         """Get comments on an issue."""
-        return self._call("get_issue_comments_v1", {"issue_id": issue_id}).to_list(
-            parsers.Comment, Comment
-        )
+        return self._call(
+            "get_issue_comments_v1",
+            {"issue_id": issue_id, "pagination": pagination, "request_options": request_options},
+        ).to_list(parsers.Comment, Comment)
 
     def create_issue_comment(self, issue_id: str, body: str) -> ActionResult[Comment]:
         """Create a comment on an issue."""
@@ -288,18 +322,31 @@ class SourceCodeManagerRPCClient:
             "delete_issue_comment_v1", {"issue_id": issue_id, "comment_id": comment_id}
         ).to_none()
 
-    def get_pull_request(self, pull_request_id: str) -> ActionResult[PullRequest]:
+    def get_pull_request(
+        self,
+        pull_request_id: str,
+        request_options: RequestOptions | None = None,
+    ) -> ActionResult[PullRequest]:
         """Get a pull request."""
         return self._call(
             "get_pull_request_v1",
-            {"pull_request_id": pull_request_id},
+            {"pull_request_id": pull_request_id, "request_options": request_options},
         ).to_item(parsers.PullRequest, PullRequest)
 
-    def get_pull_request_comments(self, pull_request_id: str) -> ActionResult[list[Comment]]:
+    def get_pull_request_comments(
+        self,
+        pull_request_id: str,
+        pagination: PaginationParams | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[Comment]:
         """Get comments on a pull request."""
         return self._call(
             "get_pull_request_comments_v1",
-            {"pull_request_id": pull_request_id},
+            {
+                "pull_request_id": pull_request_id,
+                "pagination": pagination,
+                "request_options": request_options,
+            },
         ).to_list(parsers.Comment, Comment)
 
     def create_pull_request_comment(self, pull_request_id: str, body: str) -> ActionResult[Comment]:
@@ -317,11 +364,21 @@ class SourceCodeManagerRPCClient:
         ).to_none()
 
     def get_issue_comment_reactions(
-        self, issue_id: str, comment_id: str
-    ) -> ActionResult[list[ReactionResult]]:
+        self,
+        issue_id: str,
+        comment_id: str,
+        pagination: PaginationParams | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[ReactionResult]:
         """Get reactions on an issue comment."""
         return self._call(
-            "get_issue_comment_reactions_v1", {"issue_id": issue_id, "comment_id": comment_id}
+            "get_issue_comment_reactions_v1",
+            {
+                "issue_id": issue_id,
+                "comment_id": comment_id,
+                "pagination": pagination,
+                "request_options": request_options,
+            },
         ).to_list(parsers.ReactionResult, ReactionResult)
 
     def create_issue_comment_reaction(
@@ -343,12 +400,21 @@ class SourceCodeManagerRPCClient:
         ).to_none()
 
     def get_pull_request_comment_reactions(
-        self, pull_request_id: str, comment_id: str
-    ) -> ActionResult[list[ReactionResult]]:
+        self,
+        pull_request_id: str,
+        comment_id: str,
+        pagination: PaginationParams | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[ReactionResult]:
         """Get reactions on a pull request comment."""
         return self._call(
             "get_pull_request_comment_reactions_v1",
-            {"pull_request_id": pull_request_id, "comment_id": comment_id},
+            {
+                "pull_request_id": pull_request_id,
+                "comment_id": comment_id,
+                "pagination": pagination,
+                "request_options": request_options,
+            },
         ).to_list(parsers.ReactionResult, ReactionResult)
 
     def create_pull_request_comment_reaction(
@@ -373,11 +439,17 @@ class SourceCodeManagerRPCClient:
             },
         ).to_none()
 
-    def get_issue_reactions(self, issue_id: str) -> ActionResult[list[ReactionResult]]:
+    def get_issue_reactions(
+        self,
+        issue_id: str,
+        pagination: PaginationParams | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[ReactionResult]:
         """Get reactions on an issue."""
-        return self._call("get_issue_reactions_v1", {"issue_id": issue_id}).to_list(
-            parsers.ReactionResult, ReactionResult
-        )
+        return self._call(
+            "get_issue_reactions_v1",
+            {"issue_id": issue_id, "pagination": pagination, "request_options": request_options},
+        ).to_list(parsers.ReactionResult, ReactionResult)
 
     def create_issue_reaction(
         self, issue_id: str, reaction: Reaction
@@ -394,12 +466,19 @@ class SourceCodeManagerRPCClient:
         ).to_none()
 
     def get_pull_request_reactions(
-        self, pull_request_id: str
-    ) -> ActionResult[list[ReactionResult]]:
+        self,
+        pull_request_id: str,
+        pagination: PaginationParams | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[ReactionResult]:
         """Get reactions on a pull request."""
         return self._call(
             "get_pull_request_reactions_v1",
-            {"pull_request_id": pull_request_id},
+            {
+                "pull_request_id": pull_request_id,
+                "pagination": pagination,
+                "request_options": request_options,
+            },
         ).to_list(parsers.ReactionResult, ReactionResult)
 
     def create_pull_request_reaction(
@@ -418,17 +497,23 @@ class SourceCodeManagerRPCClient:
             {"pull_request_id": pull_request_id, "reaction_id": reaction_id},
         ).to_none()
 
-    def get_branch(self, branch: str) -> ActionResult[GitRef]:
+    def get_branch(
+        self,
+        branch: BranchName,
+        request_options: RequestOptions | None = None,
+    ) -> ActionResult[GitRef]:
         """Get a branch reference."""
-        return self._call("get_branch_v1", {"branch": branch}).to_item(parsers.GitRef, GitRef)
+        return self._call(
+            "get_branch_v1", {"branch": branch, "request_options": request_options}
+        ).to_item(parsers.GitRef, GitRef)
 
-    def create_branch(self, branch: str, sha: str) -> ActionResult[GitRef]:
+    def create_branch(self, branch: BranchName, sha: CommitSHA) -> ActionResult[GitRef]:
         """Create a new branch pointing at the given SHA."""
         return self._call("create_branch_v1", {"branch": branch, "sha": sha}).to_item(
             parsers.GitRef, GitRef
         )
 
-    def update_branch(self, branch: str, sha: str, force: bool = False) -> None:
+    def update_branch(self, branch: BranchName, sha: CommitSHA, force: bool = False) -> None:
         """Update a branch to point at a new SHA."""
         return self._call(
             "update_branch_v1", {"branch": branch, "sha": sha, "force": force}
@@ -440,43 +525,77 @@ class SourceCodeManagerRPCClient:
             parsers.GitBlob, GitBlob
         )
 
-    def get_file_content(self, path: str, ref: str | None = None) -> ActionResult[FileContent]:
-        return self._call("get_file_content_v1", {"path": path, "ref": ref}).to_item(
-            parsers.FileContent, FileContent
-        )
+    def get_file_content(
+        self,
+        path: str,
+        ref: str | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> ActionResult[FileContent]:
+        return self._call(
+            "get_file_content_v1", {"path": path, "ref": ref, "request_options": request_options}
+        ).to_item(parsers.FileContent, FileContent)
 
-    def get_commit(self, sha: str) -> ActionResult[Commit]:
-        return self._call("get_commit_v1", {"sha": sha}).to_item(parsers.Commit, Commit)
+    def get_commit(
+        self,
+        sha: CommitSHA,
+        request_options: RequestOptions | None = None,
+    ) -> ActionResult[Commit]:
+        return self._call(
+            "get_commit_v1", {"sha": sha, "request_options": request_options}
+        ).to_item(parsers.Commit, Commit)
 
     def get_commits(
         self,
-        sha: str | None = None,
+        sha: CommitSHA | None = None,
         path: str | None = None,
-    ) -> ActionResult[list[Commit]]:
-        return self._call("get_commits_v1", {"sha": sha, "path": path}).to_list(
-            parsers.Commit, Commit
-        )
+        pagination: PaginationParams | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[Commit]:
+        return self._call(
+            "get_commits_v1",
+            {
+                "sha": sha,
+                "path": path,
+                "pagination": pagination,
+                "request_options": request_options,
+            },
+        ).to_list(parsers.Commit, Commit)
 
-    def compare_commits(self, start_sha: str, end_sha: str) -> ActionResult[CommitComparison]:
+    def compare_commits(
+        self,
+        start_sha: CommitSHA,
+        end_sha: CommitSHA,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[Commit]:
         return self._call(
             "compare_commits_v1",
-            {"start_sha": start_sha, "end_sha": end_sha},
-        ).to_item(parsers.CommitComparison, CommitComparison)
+            {"start_sha": start_sha, "end_sha": end_sha, "request_options": request_options},
+        ).to_list(parsers.Commit, Commit)
 
-    def get_tree(self, tree_sha: str, recursive: bool = True) -> ActionResult[GitTree]:
-        return self._call("get_tree_v1", {"tree_sha": tree_sha, "recursive": recursive}).to_item(
-            parsers.GitTree, GitTree
-        )
+    def get_tree(
+        self,
+        tree_sha: CommitSHA,
+        recursive: bool = True,
+        request_options: RequestOptions | None = None,
+    ) -> ActionResult[GitTree]:
+        return self._call(
+            "get_tree_v1",
+            {"tree_sha": tree_sha, "recursive": recursive, "request_options": request_options},
+        ).to_item(parsers.GitTree, GitTree)
 
-    def get_git_commit(self, sha: str) -> ActionResult[GitCommitObject]:
-        return self._call("get_git_commit_v1", {"sha": sha}).to_item(
-            parsers.GitCommitObject, GitCommitObject
-        )
+    def get_git_commit(
+        self,
+        sha: CommitSHA,
+        request_options: RequestOptions | None = None,
+    ) -> ActionResult[GitCommitObject]:
+        return self._call(
+            "get_git_commit_v1", {"sha": sha, "request_options": request_options}
+        ).to_item(parsers.GitCommitObject, GitCommitObject)
 
     def create_git_tree(
         self,
         tree: list[InputTreeEntry],
-        base_tree: str | None = None,
+        base_tree: CommitSHA | None = None,
     ) -> ActionResult[GitTree]:
         return self._call(
             "create_git_tree_v1",
@@ -484,49 +603,76 @@ class SourceCodeManagerRPCClient:
         ).to_item(parsers.GitTree, GitTree)
 
     def create_git_commit(
-        self, message: str, tree_sha: str, parent_shas: list[str]
+        self, message: str, tree_sha: CommitSHA, parent_shas: list[CommitSHA]
     ) -> ActionResult[GitCommitObject]:
         return self._call(
             "create_git_commit_v1",
             {"message": message, "tree_sha": tree_sha, "parent_shas": parent_shas},
         ).to_item(parsers.GitCommitObject, GitCommitObject)
 
-    def get_pull_request_files(self, pull_request_id: str) -> ActionResult[list[PullRequestFile]]:
+    def get_pull_request_files(
+        self,
+        pull_request_id: str,
+        pagination: PaginationParams | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[PullRequestFile]:
         return self._call(
             "get_pull_request_files_v1",
-            {"pull_request_id": pull_request_id},
+            {
+                "pull_request_id": pull_request_id,
+                "pagination": pagination,
+                "request_options": request_options,
+            },
         ).to_list(parsers.PullRequestFile, PullRequestFile)
 
     def get_pull_request_commits(
-        self, pull_request_id: str
-    ) -> ActionResult[list[PullRequestCommit]]:
+        self,
+        pull_request_id: str,
+        pagination: PaginationParams | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[PullRequestCommit]:
         return self._call(
             "get_pull_request_commits_v1",
-            {"pull_request_id": pull_request_id},
+            {
+                "pull_request_id": pull_request_id,
+                "pagination": pagination,
+                "request_options": request_options,
+            },
         ).to_list(parsers.PullRequestCommit, PullRequestCommit)
 
-    def get_pull_request_diff(self, pull_request_id: str) -> ActionResult[str]:
+    def get_pull_request_diff(
+        self,
+        pull_request_id: str,
+        request_options: RequestOptions | None = None,
+    ) -> ActionResult[str]:
         return self._call(
             "get_pull_request_diff_v1",
-            {"pull_request_id": pull_request_id},
+            {"pull_request_id": pull_request_id, "request_options": request_options},
         ).to_string()
 
     def get_pull_requests(
         self,
-        state: str = "open",
-        head: str | None = None,
-    ) -> ActionResult[list[PullRequest]]:
+        state: PullRequestState | None = "open",
+        head: BranchName | None = None,
+        pagination: PaginationParams | None = None,
+        request_options: RequestOptions | None = None,
+    ) -> PaginatedActionResult[PullRequest]:
         return self._call(
             "get_pull_requests_v1",
-            {"state": state, "head": head},
+            {
+                "state": state,
+                "head": head,
+                "pagination": pagination,
+                "request_options": request_options,
+            },
         ).to_list(parsers.PullRequest, PullRequest)
 
     def create_pull_request(
         self,
         title: str,
         body: str,
-        head: str,
-        base: str,
+        head: BranchName,
+        base: BranchName,
         draft: bool = False,
     ) -> ActionResult[PullRequest]:
         return self._call(
@@ -539,7 +685,7 @@ class SourceCodeManagerRPCClient:
         pull_request_id: str,
         title: str | None = None,
         body: str | None = None,
-        state: str | None = None,
+        state: PullRequestState | None = None,
     ) -> ActionResult[PullRequest]:
         return self._call(
             "update_pull_request_v1",
@@ -554,10 +700,10 @@ class SourceCodeManagerRPCClient:
     def create_review_comment_file(
         self,
         pull_request_id: str,
-        commit_id: str,
+        commit_id: CommitSHA,
         body: str,
         path: str,
-        side: str,
+        side: ReviewSide,
     ) -> ActionResult[ReviewComment]:
         """Leave a review comment on a file."""
         return self._call(
@@ -574,11 +720,11 @@ class SourceCodeManagerRPCClient:
     def create_review_comment_line(
         self,
         pull_request_id: str,
-        commit_id: str,
+        commit_id: CommitSHA,
         body: str,
         path: str,
         line: int,
-        side: str,
+        side: ReviewSide,
     ) -> ActionResult[ReviewComment]:
         """Leave a review comment on a specific line in a file."""
         return self._call(
@@ -596,13 +742,13 @@ class SourceCodeManagerRPCClient:
     def create_review_comment_multiline(
         self,
         pull_request_id: str,
-        commit_id: str,
+        commit_id: CommitSHA,
         body: str,
         path: str,
         start_line: int,
-        start_side: str,
+        start_side: ReviewSide,
         end_line: int,
-        end_side: str,
+        end_side: ReviewSide,
     ) -> ActionResult[ReviewComment]:
         """Leave a review comment on a multiline span in a file."""
         return self._call(
@@ -622,8 +768,8 @@ class SourceCodeManagerRPCClient:
     def create_review_comment_reply(
         self,
         pull_request_id: str,
-        comment_id: str,
         body: str,
+        comment_id: str,
     ) -> ActionResult[ReviewComment]:
         """Leave a review comment in reply to another review comment."""
         return self._call(
@@ -638,8 +784,8 @@ class SourceCodeManagerRPCClient:
     def create_review(
         self,
         pull_request_id: str,
-        commit_sha: str,
-        event: str,
+        commit_sha: CommitSHA,
+        event: ReviewEvent,
         comments: list[ReviewCommentInput],
         body: str | None = None,
     ) -> ActionResult[Review]:
@@ -657,7 +803,7 @@ class SourceCodeManagerRPCClient:
     def create_check_run(
         self,
         name: str,
-        head_sha: str,
+        head_sha: CommitSHA,
         status: BuildStatus | None = None,
         conclusion: BuildConclusion | None = None,
         external_id: str | None = None,
@@ -679,14 +825,18 @@ class SourceCodeManagerRPCClient:
             },
         ).to_item(parsers.CheckRun, CheckRun)
 
-    def get_check_run(self, check_run_id: str) -> ActionResult[CheckRun]:
-        return self._call("get_check_run_v1", {"check_run_id": check_run_id}).to_item(
-            parsers.CheckRun, CheckRun
-        )
+    def get_check_run(
+        self,
+        check_run_id: ResourceId,
+        request_options: RequestOptions | None = None,
+    ) -> ActionResult[CheckRun]:
+        return self._call(
+            "get_check_run_v1", {"check_run_id": check_run_id, "request_options": request_options}
+        ).to_item(parsers.CheckRun, CheckRun)
 
     def update_check_run(
         self,
-        check_run_id: str,
+        check_run_id: ResourceId,
         status: BuildStatus | None = None,
         conclusion: BuildConclusion | None = None,
         output: CheckRunOutput | None = None,
