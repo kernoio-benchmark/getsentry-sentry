@@ -3,7 +3,7 @@ import {Fragment, useCallback, useEffect, useMemo, useRef, useState} from 'react
 import styled from '@emotion/styled';
 import * as Sentry from '@sentry/react';
 import type {Virtualizer} from '@tanstack/react-virtual';
-import {useVirtualizer, useWindowVirtualizer} from '@tanstack/react-virtual';
+import {useVirtualizer} from '@tanstack/react-virtual';
 
 import {Button} from '@sentry/scraps/button';
 import {Flex, Stack} from '@sentry/scraps/layout';
@@ -49,6 +49,7 @@ import {
   LogTableRow,
 } from 'sentry/views/explore/logs/styles';
 import {LogRowContent} from 'sentry/views/explore/logs/tables/logsTableRow';
+import {useExpandoButton} from 'sentry/views/explore/logs/tables/useExpandoButton';
 import {
   OurLogKnownFieldKey,
   type OurLogsResponseItem,
@@ -95,7 +96,6 @@ type LogsTableProps = {
     filteredItems: OurLogsResponseItem[];
   };
   numberAttributes?: TagCollection;
-  scrollContainer?: React.RefObject<HTMLElement | null>;
   stringAttributes?: TagCollection;
 };
 
@@ -111,7 +111,6 @@ export function LogsInfiniteTable({
   numberAttributes,
   stringAttributes,
   booleanAttributes,
-  scrollContainer,
   embeddedStyling,
   embeddedOptions,
   additionalData,
@@ -254,23 +253,14 @@ export function LogsInfiniteTable({
     return terms;
   }, [search, localOnlyItemFilters?.filterText]);
 
-  const windowVirtualizer = useWindowVirtualizer({
+  const virtualizer = useVirtualizer({
     count: data?.length ?? 0,
     estimateSize,
     overscan: LOGS_OVERSCAN_AMOUNT,
-    getItemKey: (index: number) => data?.[index]?.[OurLogKnownFieldKey.ID] ?? index,
-    scrollMargin: tableBodyRef.current?.offsetTop ?? 0,
-  });
-
-  const containerVirtualizer = useVirtualizer({
-    count: data?.length ?? 0,
-    estimateSize,
-    overscan: LOGS_OVERSCAN_AMOUNT,
-    getScrollElement: () => scrollContainer?.current ?? null,
+    getScrollElement: () => tableBodyRef?.current,
     getItemKey: (index: number) => data?.[index]?.[OurLogKnownFieldKey.ID] ?? index,
   });
 
-  const virtualizer = scrollContainer?.current ? containerVirtualizer : windowVirtualizer;
   const virtualItems = virtualizer.getVirtualItems();
 
   const firstItem = virtualItems[0]?.start;
@@ -291,13 +281,13 @@ export function LogsInfiniteTable({
   useEffect(() => {
     if (
       pseudoRowIndex !== -1 &&
-      scrollContainer?.current &&
+      tableBodyRef?.current &&
       !additionalData?.scrollToDisabled
     ) {
       setTimeout(() => {
         const scrollToIndex =
           pseudoRowIndex === -2 ? baseDataLength.current : pseudoRowIndex;
-        containerVirtualizer.scrollToIndex(scrollToIndex, {
+        virtualizer.scrollToIndex(scrollToIndex, {
           behavior: 'smooth',
           align: 'center',
         });
@@ -305,8 +295,8 @@ export function LogsInfiniteTable({
     }
   }, [
     pseudoRowIndex,
-    containerVirtualizer,
-    scrollContainer,
+    virtualizer,
+    tableBodyRef,
     baseDataLength,
     additionalData?.scrollToDisabled,
   ]);
@@ -335,9 +325,7 @@ export function LogsInfiniteTable({
         ]
       : [0, 0];
 
-  const {scrollDirection, scrollOffset, isScrolling} = scrollContainer
-    ? containerVirtualizer
-    : virtualizer;
+  const {scrollDirection, scrollOffset, isScrolling} = virtualizer;
 
   useEffect(() => {
     if (isFunctionScrolling && !isScrolling && scrollOffset === 0) {
@@ -427,6 +415,10 @@ export function LogsInfiniteTable({
     };
   }, []);
 
+  const {expanded, expando} = useExpandoButton(() => {
+    virtualizer.measure();
+  });
+
   // For replay context, render empty states outside the table for proper centering
   if (hasReplay && (isPending || isError || isEmpty)) {
     return (
@@ -467,10 +459,12 @@ export function LogsInfiniteTable({
             onResizeMouseDown={onResizeMouseDown}
           />
         )}
+        <div style={{position: 'absolute', top: 8, right: 8}}>{expando}</div>
         <LogTableBody
           showHeader={!embedded}
           ref={tableBodyRef}
           disableBodyPadding={embeddedStyling?.disableBodyPadding}
+          expanded={expanded}
         >
           {paddingTop > 0 && (
             <TableRow>
@@ -774,7 +768,10 @@ function BackToTopButton({
 }: {
   hidden: boolean;
   setIsFunctionScrolling: (isScrolling: boolean) => void;
-  virtualizer: Virtualizer<HTMLElement, Element> | Virtualizer<Window, Element>;
+  virtualizer:
+    | Virtualizer<HTMLTableSectionElement, Element>
+    | Virtualizer<HTMLElement, Element>
+    | Virtualizer<Window, Element>;
 }) {
   if (hidden) {
     return null;

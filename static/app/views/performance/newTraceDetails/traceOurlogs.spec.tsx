@@ -1,4 +1,3 @@
-import {useRef} from 'react';
 import {OrganizationFixture} from 'sentry-fixture/organization';
 
 import {render, screen} from 'sentry-test/reactTestingLibrary';
@@ -12,10 +11,9 @@ import {
 const TRACE_SLUG = '00000000000000000000000000000000';
 
 function Component({traceSlug}: {traceSlug: string}) {
-  const ref = useRef(null);
   return (
     <TraceViewLogsDataProvider traceSlug={traceSlug}>
-      <TraceViewLogsSection scrollContainer={ref} />
+      <TraceViewLogsSection />
     </TraceViewLogsDataProvider>
   );
 }

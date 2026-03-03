@@ -128,6 +128,7 @@ export const LogTableBodyCell = styled(TableBodyCell)`
 
 export const LogTableBody = styled(TableBody)<{
   disableBodyPadding?: boolean;
+  expanded?: boolean;
   showHeader?: boolean;
 }>`
   ${p =>
@@ -139,6 +140,13 @@ export const LogTableBody = styled(TableBody)<{
     padding-top: ${space(1)};
     padding-bottom: ${space(1)};
     `}
+  ${p =>
+    p.expanded
+      ? ``
+      : `
+    overflow-y: scroll;
+    max-height: 70vh;
+    min-height: 5rem;`}
 `;
 
 export const LogDetailTableBodyCell = styled(TableBodyCell)`

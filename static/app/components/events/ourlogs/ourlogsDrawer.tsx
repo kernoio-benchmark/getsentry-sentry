@@ -1,4 +1,4 @@
-import {useMemo, useRef} from 'react';
+import {useMemo} from 'react';
 import moment from 'moment-timezone';
 
 import {ProjectAvatar} from '@sentry/scraps/avatar';
@@ -83,7 +83,6 @@ export function OurlogsDrawer({
   const searchQueryBuilderProps = useTraceItemSearchQueryBuilderProps(
     tracesItemSearchQueryBuilderProps
   );
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const additionalData = useMemo(
     () => ({
@@ -156,11 +155,10 @@ export function OurlogsDrawer({
             )}
           </Flex>
         </EventNavigator>
-        <EventDrawerBody ref={containerRef}>
+        <EventDrawerBody>
           <Stack gap="xl">
             <LogsInfiniteTable
               embedded
-              scrollContainer={containerRef}
               embeddedOptions={embeddedOptions}
               additionalData={additionalData}
             />

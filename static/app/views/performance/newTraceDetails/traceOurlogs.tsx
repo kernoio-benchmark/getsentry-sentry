@@ -35,23 +35,15 @@ export function TraceViewLogsDataProvider({
   );
 }
 
-export function TraceViewLogsSection({
-  scrollContainer,
-}: {
-  scrollContainer: React.RefObject<HTMLDivElement | null>;
-}) {
+export function TraceViewLogsSection() {
   return (
     <StyledPanel>
-      <LogsSectionContent scrollContainer={scrollContainer} />
+      <LogsSectionContent />
     </StyledPanel>
   );
 }
 
-function LogsSectionContent({
-  scrollContainer,
-}: {
-  scrollContainer: React.RefObject<HTMLDivElement | null>;
-}) {
+function LogsSectionContent() {
   const setLogsQuery = useSetQueryParamsQuery();
   const logsSearch = useQueryParamsSearch();
 
@@ -66,7 +58,7 @@ function LogsSectionContent({
         onSearch={query => setLogsQuery(query)}
       />
       <TableContainer>
-        <LogsInfiniteTable embedded scrollContainer={scrollContainer} />
+        <LogsInfiniteTable embedded />
       </TableContainer>
     </Fragment>
   );
