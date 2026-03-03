@@ -293,3 +293,28 @@ def test_pull_request_reactions(
         pull_request_id=pull_request_id, reaction_id=new_reaction["id"]
     )
     assert len(client.get_pull_request_reactions(pull_request_id)["data"]) == 1
+
+
+def test_branches(switch: Switch, service: Service, client: SourceCodeManagerRPCClient) -> None:
+    assert client.get_branch(branch="topics/blah")["data"] == {
+        "ref": "topics/blah",
+        "sha": "6d8ca33dae268d3c5835e721e5702ef9dcb43c8c",
+    }
+
+    branch = datetime.now().strftime("tests/%Y%m%d-%H%M%S")
+    assert client.create_branch(branch=branch, sha="0941ee0a9eac9914cfddf5adec7a9558a2f1c447")[
+        "data"
+    ] == {
+        "ref": switch(f"refs/heads/{branch}", branch),
+        "sha": "0941ee0a9eac9914cfddf5adec7a9558a2f1c447",
+    }
+    assert client.get_branch(branch=branch)["data"] == {
+        "ref": branch,
+        "sha": "0941ee0a9eac9914cfddf5adec7a9558a2f1c447",
+    }
+    if service == "github":
+        client.update_branch(branch=branch, sha="6d8ca33dae268d3c5835e721e5702ef9dcb43c8c")
+        assert client.get_branch(branch=branch)["data"] == {
+            "ref": branch,
+            "sha": "6d8ca33dae268d3c5835e721e5702ef9dcb43c8c",
+        }

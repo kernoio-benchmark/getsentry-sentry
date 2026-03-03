@@ -410,15 +410,27 @@ class GitLabProvider:
         branch: BranchName,
         request_options: RequestOptions | None = None,
     ) -> ActionResult[GitRef]:
-        raise NotImplementedError("get_branch")
+        raw = self.client.get_branch(self._repo_id, branch)
+        return ActionResult(
+            data=GitRef(ref=raw["name"], sha=raw["commit"]["id"]),
+            type="gitlab",
+            raw=raw,
+            meta={},
+        )
 
     @catch_provider_exception
     def create_branch(self, branch: BranchName, sha: CommitSHA) -> ActionResult[GitRef]:
-        raise NotImplementedError("create_branch")
+        raw = self.client.create_branch(self._repo_id, branch, sha)
+        return ActionResult(
+            data=GitRef(ref=raw["name"], sha=raw["commit"]["id"]),
+            type="gitlab",
+            raw=raw,
+            meta={},
+        )
 
     @catch_provider_exception
     def update_branch(self, branch: BranchName, sha: CommitSHA, force: bool = False) -> None:
-        raise NotImplementedError("update_branch")
+        raise NotImplementedError("Updating a branch is not supported by the GitLab API")
 
     @catch_provider_exception
     def create_git_blob(self, content: str, encoding: str) -> ActionResult[GitBlob]:

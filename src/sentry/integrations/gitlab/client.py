@@ -499,6 +499,19 @@ class GitLabApiClient(IntegrationProxyClient, RepositoryClient, CommitContextCli
         path = GitLabApiClientPath.project_hook.format(project=project_id, hook_id=hook_id)
         return self.delete(path)
 
+    def create_branch(self, project_id: str, branch: str, ref: str):
+        """https://docs.gitlab.com/api/branches/#create-repository-branch"""
+        return self.post(
+            GitLabApiClientPath.branches.format(project_id=project_id),
+            params={"branch": branch, "ref": ref},
+        )
+
+    def get_branch(self, project_id: str, branch: str):
+        """https://docs.gitlab.com/api/branches/#retrieve-a-repository-branch"""
+        return self.get(
+            GitLabApiClientPath.branch.format(project_id=project_id, branch=quote(branch, safe=""))
+        )
+
     def get_last_commits(self, project_id, end_sha):
         """Get the last set of commits ending at end_sha
 
