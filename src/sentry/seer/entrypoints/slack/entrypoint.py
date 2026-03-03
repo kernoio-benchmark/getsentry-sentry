@@ -11,6 +11,7 @@ from sentry.notifications.platform.templates.seer import (
     SeerAutofixError,
     SeerAutofixUpdate,
     SeerExplorerError,
+    SeerExplorerResponse,
 )
 from sentry.notifications.utils.actions import BlockKitMessageAction
 from sentry.seer.autofix.utils import AutofixStoppingPoint
@@ -52,7 +53,7 @@ class SlackEntrypointCachePayload(TypedDict):
 class SlackExplorerCachePayload(TypedDict):
     organization_id: int
     integration_id: int
-    threads: list[SlackThreadDetails]
+    thread: SlackThreadDetails
 
 
 @entrypoint_registry.register(key=SeerEntrypointKey.SLACK)
@@ -200,7 +201,6 @@ class SlackEntrypoint(SeerEntrypoint[SlackEntrypointCachePayload, SlackExplorerC
             slack_user_id=self.slack_request.user_id if include_user else None,
         )
 
-    # TODO(ISWF-2025): Implement Explorer entrypoint methods
     def on_trigger_explorer_error(self, *, error: str) -> None:
         send_thread_update(
             install=self.install,
@@ -210,22 +210,46 @@ class SlackEntrypoint(SeerEntrypoint[SlackEntrypointCachePayload, SlackExplorerC
         )
 
     def on_trigger_explorer_success(self, *, run_id: int) -> None:
-        self.install.add_reaction(
+        self.install.remove_reaction(
             channel_id=self.channel_id,
             message_ts=self.message_ts,
             emoji="thinking_face",
         )
+        self.install.add_reaction(
+            channel_id=self.channel_id,
+            message_ts=self.message_ts,
+            emoji="white_check_mark",
+        )
 
     def create_explorer_cache_payload(self) -> SlackExplorerCachePayload:
         return SlackExplorerCachePayload(
-            threads=[self.thread],
+            thread=self.thread,
             organization_id=self.organization_id,
             integration_id=self.install.model.id,
         )
 
     @staticmethod
-    def on_explorer_update(cache_payload: SlackExplorerCachePayload) -> None:
-        return None
+    def on_explorer_update(
+        cache_payload: SlackExplorerCachePayload,
+        summary: str | None,
+        run_id: int,
+    ) -> None:
+        organization_id = cache_payload["organization_id"]
+        organization = Organization.objects.get(id=organization_id)
+        explorer_link = organization.absolute_url(f"/explore/seer/{run_id}/")
+
+        data = SeerExplorerResponse(
+            run_id=run_id,
+            organization_id=organization_id,
+            explorer_link=explorer_link,
+            summary=summary,
+        )
+        schedule_all_thread_updates(
+            threads=[cache_payload["thread"]],
+            integration_id=cache_payload["integration_id"],
+            organization_id=organization_id,
+            data=data,
+        )
 
     def on_trigger_autofix_error(self, *, error: str) -> None:
         send_thread_update(
@@ -426,6 +450,8 @@ class SlackExplorerCompletionHook(ExplorerOnCompletionHook):
 
     @classmethod
     def execute(cls, organization: Organization, run_id: int) -> None:
+        from sentry.seer.explorer.client_utils import fetch_run_status
+
         cache_payload = SeerOperatorExplorerCache[SlackExplorerCachePayload].get(
             entrypoint_key=str(SlackEntrypoint.key),
             run_id=run_id,
@@ -437,4 +463,21 @@ class SlackExplorerCompletionHook(ExplorerOnCompletionHook):
             )
             return
 
-        SlackEntrypoint.on_explorer_update(cache_payload=cache_payload)
+        summary = None
+        try:
+            state = fetch_run_status(run_id, organization)
+            for block in reversed(state.blocks):
+                if block.message.role == "assistant" and block.message.content:
+                    summary = block.message.content
+                    break
+        except Exception:
+            logger.exception(
+                "seer.entrypoint.slack.explorer_completion.fetch_run_failed",
+                extra={"run_id": run_id, "organization_id": organization.id},
+            )
+
+        SlackEntrypoint.on_explorer_update(
+            cache_payload=cache_payload,
+            summary=summary,
+            run_id=run_id,
+        )

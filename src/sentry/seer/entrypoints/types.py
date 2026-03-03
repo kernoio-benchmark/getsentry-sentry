@@ -70,15 +70,17 @@ class SeerEntrypoint[AutofixCachePayloadT, ExplorerCachePayloadT](Protocol):
     @staticmethod
     def on_explorer_update(
         cache_payload: ExplorerCachePayloadT,
+        summary: str | None,
+        run_id: int,
     ) -> None:
         """
         Called when an Explorer run completes, via ExplorerOnCompletionHook.
 
         Unlike on_autofix_update which receives streaming webhook events during a run,
         this is invoked once when the Explorer run reaches a terminal state. The completion
-        hook (ExplorerOnCompletionHook.execute) retrieves the cached payload and delegates
-        to this method so the entrypoint can notify the external service (e.g., remove a
-        :thinking_face: reaction and post a thread reply with the Explorer result link).
+        hook (ExplorerOnCompletionHook.execute) retrieves the cached payload, fetches the
+        run state from Seer, and delegates to this method so the entrypoint can notify the
+        external service (e.g., post a thread reply with the Explorer summary and result link).
 
         The shape of the cached payload is determined by `create_explorer_cache_payload`.
 

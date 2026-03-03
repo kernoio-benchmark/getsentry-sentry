@@ -64,7 +64,9 @@ class MockEntrypoint(SeerEntrypoint[MockCachePayload, MockCachePayload]):
         return {"thread_id": self.thread_id}
 
     @staticmethod
-    def on_explorer_update(cache_payload: MockCachePayload) -> None:
+    def on_explorer_update(
+        cache_payload: MockCachePayload, summary: str | None, run_id: int
+    ) -> None:
         return None
 
     def create_autofix_cache_payload(self) -> MockCachePayload:
