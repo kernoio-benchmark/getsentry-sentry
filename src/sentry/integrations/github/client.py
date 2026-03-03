@@ -783,7 +783,7 @@ class GitHubBaseClient(
         """
         https://docs.github.com/en/rest/pulls/comments#list-review-comments-on-a-pull-request
         """
-        return self.get(f"/repos/{repo}/pulls/{pull_number}/comments")
+        return self.get(f"/repos/{repo}/issues/{pull_number}/comments")
 
     def create_issue(self, repo: str, data: Mapping[str, Any]) -> Any:
         """
