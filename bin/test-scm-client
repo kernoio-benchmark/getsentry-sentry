@@ -1,0 +1,133 @@
+#!/usr/bin/env python
+"""
+You need access to getsentry/getsentry to use this script. It's not trivial. You need access to
+the sentry-ecosystems organization. Create your GitHub application using that organization. Details
+are listed in the docs link below.
+
+READ: https://develop.sentry.dev/integrations/github/
+
+Run a getsentry server with `devservices serve --ngrok=yourname.ngrok.io`. Register a new GitHub
+installation. Add your test repository (created under the sentry-ecosystems GitHub organization).
+Update the metadata in the RPC client below to match yours.
+
+You only need ngrok to run the installation step. As long as you don't drop your database you can
+re-use its state without ngrok.
+"""
+
+import logging
+import os
+
+import django
+
+from sentry.runner import configure
+from sentry.scm.client.scm_rpc_client import SourceCodeManagerRPCClient
+
+configure()
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "sentry.conf.server")
+
+logger = logging.getLogger()
+
+
+django.setup()
+
+client = SourceCodeManagerRPCClient(
+    base_url="http://dev.getsentry.net:8000",
+    shared_secret="secret",
+    organization_id=4510947798089728,
+    repository_id=("github", "1166889941"),
+)
+
+# INTEGRATION FAILED! (update perms on GH app)
+#
+# client.create_branch("hello", "869b321bee94bd1aae7ac31520f316be9e2f86b4")
+# client.update_branch()
+# client.create_git_blob("hello, world", "text/plain")
+# client.create_git_tree(
+#     tree=[
+#         {
+#             "mode": "040000",
+#             "path": "README.md",
+#             "sha": "d94b5f7ec7c6d7602c78a5e9b8a5b8c94d093eda",
+#             "type": "commit",
+#         }
+#     ],
+#     base_tree="45894a6e579d5833cebf06d779fa95de8b77f178",
+# )
+# client.create_git_commit
+# get_check_run
+# client.create_check_run
+# update_check_run
+
+# SCM FAILED!
+#
+# client.create_review_comment("2", "c", "45894a6e579d5833cebf06d779fa95de8b77f178", "README.md")
+
+# RPC CLIENT FAILED!
+#
+# failing = [
+#     (client.get_issue_comments, ("1",)),
+#     (client.get_pull_request_comments, ("1",)),
+#     (client.get_pull_requests, ()),
+#     (client.get_pull_request_files, ("2",)),
+#     (
+#         client.compare_commits,
+#         (
+#             "869b321bee94bd1aae7ac31520f316be9e2f86b4",
+#             "45894a6e579d5833cebf06d779fa95de8b77f178",
+#         ),
+#     ),
+#     (client.get_pull_request_commits, ("2",)),
+# ]
+#
+# for fn, args in failing:
+#     try:
+#         fn(*args)
+#     except Exception:
+#         logger.exception("failed")
+
+# WORKING!
+# client.get_issue_reactions("1")
+# client.get_pull_request("2")
+# client.get_pull_request_diff("2")
+# client.get_pull_request_reactions("2")
+# client.get_pull_request_comment_reactions("3961067987")
+# client.get_issue_comment_reactions("3961067987")
+# client.get_branch("test")
+# client.get_commit("45894a6e579d5833cebf06d779fa95de8b77f178")
+# client.get_commits()
+# client.get_tree("45894a6e579d5833cebf06d779fa95de8b77f178")
+# client.get_git_commit("45894a6e579d5833cebf06d779fa95de8b77f178")
+# client.create_issue_comment("1", "and all those who inhabit it!")
+# client.create_issue_comment_reaction("3963579515", "+1")
+# client.delete_issue_comment_reaction("3963579515", "333497789")
+# client.delete_issue_comment("3963579515")
+# client.create_pull_request_comment("2", "me again...")
+# client.create_pull_request_comment_reaction("3963593664", "heart")
+# client.delete_pull_request_comment_reaction("3963593664", "333498377")
+# client.delete_pull_request_comment("3963593664")
+# client.create_issue_reaction("1", "confused")
+# client.delete_issue_reaction("1", "275375187")
+# client.create_pull_request_reaction("2", "hooray")
+# client.delete_pull_request_reaction("2", "275375191")
+# client.get_file_content("README.md")
+# client.create_pull_request("machine PR", "testing", head="other", base="main", draft=True)
+# client.update_pull_request("2", title="machine pr 2", body="new body", state="open")
+# print(
+#     client.create_review(
+#         "3",
+#         "3109d6a2dc08949bb0e14e55811d32c3d3daa8ed",
+#         "COMMENT",
+#         comments=[{"body": "this is good tho", "line": 1, "path": "README.md"}],
+#         body="wow this is really bad",
+#     )
+# )
+
+# UNKNOWN RESOLUTION CRITERIA
+#
+# print(client.minimize_comment("2856616744", reason="RESOLVED"))
+# print(client.resolve_review_thread("PRR_kwDORY1T1c7l9v3p"))
+
+# In-progress
+#
+# ALL DONE!

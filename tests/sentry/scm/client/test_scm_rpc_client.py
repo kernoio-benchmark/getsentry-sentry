@@ -47,6 +47,7 @@ def test_numerical_repository_id_is_sent_as_is() -> None:
                     "args": {
                         "organization_id": 123,
                         "repository_id": 456,
+                        "issue_id": "issue-id",
                         "comment_id": "comment-id",
                     }
                 }
@@ -60,7 +61,7 @@ def test_numerical_repository_id_is_sent_as_is() -> None:
         organization_id=123,
         repository_id=456,
     )
-    client.delete_issue_comment("comment-id")
+    client.delete_issue_comment("issue-id", "comment-id")
     responses.assert_call_count(f"{base_url}/{prefix}/delete_issue_comment_v1/", 1)
 
 
@@ -78,6 +79,7 @@ def test_composite_repository_id_is_sent_as_dict() -> None:
                             "provider": "github",
                             "external_id": "456",
                         },
+                        "issue_id": "issue-id",
                         "comment_id": "comment-id",
                     }
                 }
@@ -91,7 +93,7 @@ def test_composite_repository_id_is_sent_as_dict() -> None:
         organization_id=123,
         repository_id=("github", "456"),
     )
-    client.delete_issue_comment("comment-id")
+    client.delete_issue_comment("issue-id", "comment-id")
     responses.assert_call_count(f"{base_url}/{prefix}/delete_issue_comment_v1/", 1)
 
 
@@ -113,13 +115,13 @@ def test_request_is_signed(client: SourceCodeManagerRPCClient) -> None:
         match=[
             responses.matchers.header_matcher(
                 {
-                    "Authorization": "rpcsignature rpc0:25abeeacd595b8536f7bdcae339ee17f54ef222c1c36211df20f65d65505bb99"
+                    "Authorization": "rpcsignature rpc0:ed7ba272c1495cebdb65f75df535eb26eaad18aaeb44b3a47b45412f162598f6"
                 }
             ),
         ],
         json={"data": None},
     )
-    client.delete_issue_comment("comment-id")
+    client.delete_issue_comment("issue-id", "comment-id")
     responses.assert_call_count(f"{base_url}/{prefix}/delete_issue_comment_v1/", 1)
 
 
@@ -183,7 +185,7 @@ def test_provided_session_is_used() -> None:
         ],
         json={"data": None},
     )
-    client.delete_issue_comment("comment-id")
+    client.delete_issue_comment("issue-id", "comment-id")
     responses.assert_call_count(f"{base_url}/{prefix}/delete_issue_comment_v1/", 1)
 
 
@@ -222,7 +224,7 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.delete_issue_comment,
-            {"comment_id": "comment-id"},
+            {"issue_id": "issue-id", "comment_id": "comment-id"},
             f"{base_url}/{prefix}/delete_issue_comment_v1/",
             None,
         ),
@@ -267,13 +269,13 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.delete_pull_request_comment,
-            {"comment_id": "comment-id"},
+            {"pull_request_id": "pull-request-id", "comment_id": "comment-id"},
             f"{base_url}/{prefix}/delete_pull_request_comment_v1/",
             None,
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.get_issue_comment_reactions,
-            {"comment_id": "comment-id"},
+            {"issue_id": "issue-id", "comment_id": "comment-id"},
             f"{base_url}/{prefix}/get_issue_comment_reactions_v1/",
             [
                 {
@@ -285,7 +287,7 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.create_issue_comment_reaction,
-            {"comment_id": "comment-id", "reaction": "+1"},
+            {"issue_id": "issue-id", "comment_id": "comment-id", "reaction": "+1"},
             f"{base_url}/{prefix}/create_issue_comment_reaction_v1/",
             {
                 "id": "reaction-id",
@@ -295,13 +297,13 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.delete_issue_comment_reaction,
-            {"comment_id": "comment-id", "reaction_id": "reaction-id"},
+            {"issue_id": "issue-id", "comment_id": "comment-id", "reaction_id": "reaction-id"},
             f"{base_url}/{prefix}/delete_issue_comment_reaction_v1/",
             None,
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.get_pull_request_comment_reactions,
-            {"comment_id": "comment-id"},
+            {"pull_request_id": "pull-request-id", "comment_id": "comment-id"},
             f"{base_url}/{prefix}/get_pull_request_comment_reactions_v1/",
             [
                 {
@@ -313,7 +315,7 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.create_pull_request_comment_reaction,
-            {"comment_id": "comment-id", "reaction": "+1"},
+            {"pull_request_id": "pull-request-id", "comment_id": "comment-id", "reaction": "+1"},
             f"{base_url}/{prefix}/create_pull_request_comment_reaction_v1/",
             {
                 "id": "reaction-id",
@@ -323,7 +325,11 @@ class SimpleSuccessTest(NamedTuple):
         ),
         SimpleSuccessTest(
             SourceCodeManagerRPCClient.delete_pull_request_comment_reaction,
-            {"comment_id": "comment-id", "reaction_id": "reaction-id"},
+            {
+                "pull_request_id": "pull-request-id",
+                "comment_id": "comment-id",
+                "reaction_id": "reaction-id",
+            },
             f"{base_url}/{prefix}/delete_pull_request_comment_reaction_v1/",
             None,
         ),
@@ -671,18 +677,53 @@ class SimpleSuccessTest(NamedTuple):
             None,
         ),
         SimpleSuccessTest(
-            SourceCodeManagerRPCClient.create_review_comment,
+            SourceCodeManagerRPCClient.create_review_comment_file,
             {
                 "pull_request_id": "pr-id",
+                "commit_id": "sha",
                 "body": "body",
-                "commit_sha": "sha",
+                "path": "path",
+                "side": "LEFT",
+            },
+            f"{base_url}/{prefix}/create_review_comment_multiline_v1/",
+            {"id": "73", "html_url": "http://blah", "path": "path", "body": "comment body"},
+        ),
+        SimpleSuccessTest(
+            SourceCodeManagerRPCClient.create_review_comment_line,
+            {
+                "pull_request_id": "pr-id",
+                "commit_id": "sha",
+                "body": "body",
                 "path": "path",
                 "line": 42,
                 "side": "LEFT",
+            },
+            f"{base_url}/{prefix}/create_review_comment_multiline_v1/",
+            {"id": "73", "html_url": "http://blah", "path": "path", "body": "comment body"},
+        ),
+        SimpleSuccessTest(
+            SourceCodeManagerRPCClient.create_review_comment_multiline,
+            {
+                "pull_request_id": "pr-id",
+                "commit_id": "sha",
+                "body": "body",
+                "path": "path",
                 "start_line": 57,
                 "start_side": "right",
+                "end_line": 42,
+                "end_side": "LEFT",
             },
-            f"{base_url}/{prefix}/create_review_comment_v1/",
+            f"{base_url}/{prefix}/create_review_comment_multiline_v1/",
+            {"id": "73", "html_url": "http://blah", "path": "path", "body": "comment body"},
+        ),
+        SimpleSuccessTest(
+            SourceCodeManagerRPCClient.create_review_comment_reply,
+            {
+                "pull_request_id": "pr-id",
+                "comment_id": "1",
+                "body": "body",
+            },
+            f"{base_url}/{prefix}/create_review_comment_reply_v1/",
             {"id": "73", "html_url": "http://blah", "path": "path", "body": "comment body"},
         ),
         SimpleSuccessTest(
@@ -950,7 +991,7 @@ def test_dict_instead_of_none_response_data_raises_unhandled_exception(
         json=body,
     )
     with pytest.raises(SCMUnhandledException) as exc:
-        client.delete_issue_comment("comment-id")
+        client.delete_issue_comment("issue-id", "comment-id")
     assert exc.value.args == (
         "Response data did not match expected return type",
         299,

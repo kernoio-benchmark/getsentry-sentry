@@ -36,7 +36,6 @@ from .types import (
     Review,
     ReviewComment,
     ReviewCommentInput,
-    ReviewSide,
 )
 
 # Implementation details
@@ -283,9 +282,11 @@ class SourceCodeManagerRPCClient:
             parsers.Comment, Comment
         )
 
-    def delete_issue_comment(self, comment_id: str) -> None:
+    def delete_issue_comment(self, issue_id: str, comment_id: str) -> None:
         """Delete a comment on an issue."""
-        return self._call("delete_issue_comment_v1", {"comment_id": comment_id}).to_none()
+        return self._call(
+            "delete_issue_comment_v1", {"issue_id": issue_id, "comment_id": comment_id}
+        ).to_none()
 
     def get_pull_request(self, pull_request_id: str) -> ActionResult[PullRequest]:
         """Get a pull request."""
@@ -308,55 +309,68 @@ class SourceCodeManagerRPCClient:
             {"pull_request_id": pull_request_id, "body": body},
         ).to_item(parsers.Comment, Comment)
 
-    def delete_pull_request_comment(self, comment_id: str) -> None:
+    def delete_pull_request_comment(self, pull_request_id: str, comment_id: str) -> None:
         """Delete a comment on a pull request."""
-        return self._call("delete_pull_request_comment_v1", {"comment_id": comment_id}).to_none()
+        return self._call(
+            "delete_pull_request_comment_v1",
+            {"pull_request_id": pull_request_id, "comment_id": comment_id},
+        ).to_none()
 
-    def get_issue_comment_reactions(self, comment_id: str) -> ActionResult[list[ReactionResult]]:
+    def get_issue_comment_reactions(
+        self, issue_id: str, comment_id: str
+    ) -> ActionResult[list[ReactionResult]]:
         """Get reactions on an issue comment."""
-        return self._call("get_issue_comment_reactions_v1", {"comment_id": comment_id}).to_list(
-            parsers.ReactionResult, ReactionResult
-        )
+        return self._call(
+            "get_issue_comment_reactions_v1", {"issue_id": issue_id, "comment_id": comment_id}
+        ).to_list(parsers.ReactionResult, ReactionResult)
 
     def create_issue_comment_reaction(
-        self, comment_id: str, reaction: Reaction
+        self, issue_id: str, comment_id: str, reaction: Reaction
     ) -> ActionResult[ReactionResult]:
         """Create a reaction on an issue comment."""
         return self._call(
             "create_issue_comment_reaction_v1",
-            {"comment_id": comment_id, "reaction": reaction},
+            {"issue_id": issue_id, "comment_id": comment_id, "reaction": reaction},
         ).to_item(parsers.ReactionResult, ReactionResult)
 
-    def delete_issue_comment_reaction(self, comment_id: str, reaction_id: str) -> None:
+    def delete_issue_comment_reaction(
+        self, issue_id: str, comment_id: str, reaction_id: str
+    ) -> None:
         """Delete a reaction on an issue comment."""
         return self._call(
             "delete_issue_comment_reaction_v1",
-            {"comment_id": comment_id, "reaction_id": reaction_id},
+            {"issue_id": issue_id, "comment_id": comment_id, "reaction_id": reaction_id},
         ).to_none()
 
     def get_pull_request_comment_reactions(
-        self, comment_id: str
+        self, pull_request_id: str, comment_id: str
     ) -> ActionResult[list[ReactionResult]]:
         """Get reactions on a pull request comment."""
         return self._call(
             "get_pull_request_comment_reactions_v1",
-            {"comment_id": comment_id},
+            {"pull_request_id": pull_request_id, "comment_id": comment_id},
         ).to_list(parsers.ReactionResult, ReactionResult)
 
     def create_pull_request_comment_reaction(
-        self, comment_id: str, reaction: Reaction
+        self, pull_request_id: str, comment_id: str, reaction: Reaction
     ) -> ActionResult[ReactionResult]:
         """Create a reaction on a pull request comment."""
         return self._call(
             "create_pull_request_comment_reaction_v1",
-            {"comment_id": comment_id, "reaction": reaction},
+            {"pull_request_id": pull_request_id, "comment_id": comment_id, "reaction": reaction},
         ).to_item(parsers.ReactionResult, ReactionResult)
 
-    def delete_pull_request_comment_reaction(self, comment_id: str, reaction_id: str) -> None:
+    def delete_pull_request_comment_reaction(
+        self, pull_request_id: str, comment_id: str, reaction_id: str
+    ) -> None:
         """Delete a reaction on a pull request comment."""
         return self._call(
             "delete_pull_request_comment_reaction_v1",
-            {"comment_id": comment_id, "reaction_id": reaction_id},
+            {
+                "pull_request_id": pull_request_id,
+                "comment_id": comment_id,
+                "reaction_id": reaction_id,
+            },
         ).to_none()
 
     def get_issue_reactions(self, issue_id: str) -> ActionResult[list[ReactionResult]]:
@@ -537,28 +551,87 @@ class SourceCodeManagerRPCClient:
             "request_review_v1", {"pull_request_id": pull_request_id, "reviewers": reviewers}
         ).to_none()
 
-    def create_review_comment(
+    def create_review_comment_file(
         self,
         pull_request_id: str,
+        commit_id: str,
         body: str,
-        commit_sha: str,
         path: str,
-        line: int | None = None,
-        side: ReviewSide | None = None,
-        start_line: int | None = None,
-        start_side: ReviewSide | None = None,
+        side: str,
     ) -> ActionResult[ReviewComment]:
+        """Leave a review comment on a file."""
         return self._call(
-            "create_review_comment_v1",
+            "create_review_comment_multiline_v1",
             {
                 "pull_request_id": pull_request_id,
+                "commit_id": commit_id,
                 "body": body,
-                "commit_sha": commit_sha,
+                "path": path,
+                "side": side,
+            },
+        ).to_item(parsers.ReviewComment, ReviewComment)
+
+    def create_review_comment_line(
+        self,
+        pull_request_id: str,
+        commit_id: str,
+        body: str,
+        path: str,
+        line: int,
+        side: str,
+    ) -> ActionResult[ReviewComment]:
+        """Leave a review comment on a specific line in a file."""
+        return self._call(
+            "create_review_comment_multiline_v1",
+            {
+                "pull_request_id": pull_request_id,
+                "commit_id": commit_id,
+                "body": body,
                 "path": path,
                 "line": line,
                 "side": side,
+            },
+        ).to_item(parsers.ReviewComment, ReviewComment)
+
+    def create_review_comment_multiline(
+        self,
+        pull_request_id: str,
+        commit_id: str,
+        body: str,
+        path: str,
+        start_line: int,
+        start_side: str,
+        end_line: int,
+        end_side: str,
+    ) -> ActionResult[ReviewComment]:
+        """Leave a review comment on a multiline span in a file."""
+        return self._call(
+            "create_review_comment_multiline_v1",
+            {
+                "pull_request_id": pull_request_id,
+                "commit_id": commit_id,
+                "body": body,
+                "path": path,
                 "start_line": start_line,
                 "start_side": start_side,
+                "end_line": end_line,
+                "end_side": end_side,
+            },
+        ).to_item(parsers.ReviewComment, ReviewComment)
+
+    def create_review_comment_reply(
+        self,
+        pull_request_id: str,
+        comment_id: str,
+        body: str,
+    ) -> ActionResult[ReviewComment]:
+        """Leave a review comment in reply to another review comment."""
+        return self._call(
+            "create_review_comment_reply_v1",
+            {
+                "pull_request_id": pull_request_id,
+                "comment_id": comment_id,
+                "body": body,
             },
         ).to_item(parsers.ReviewComment, ReviewComment)
 
