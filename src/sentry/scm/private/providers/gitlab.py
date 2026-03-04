@@ -443,7 +443,19 @@ class GitLabProvider:
         ref: str | None = None,
         request_options: RequestOptions | None = None,
     ) -> ActionResult[FileContent]:
-        raise NotImplementedError("get_file_content")
+        raw = self.client.get_file_content(self._repo_id, path, ref)
+        return ActionResult(
+            data=FileContent(
+                path=raw["file_path"],
+                sha=raw["blob_id"],
+                content=raw["content"],
+                encoding=raw["encoding"],
+                size=raw["size"],
+            ),
+            type="gitlab",
+            raw=raw,
+            meta={},
+        )
 
     @catch_provider_exception
     def get_commit(
@@ -451,7 +463,13 @@ class GitLabProvider:
         sha: CommitSHA,
         request_options: RequestOptions | None = None,
     ) -> ActionResult[Commit]:
-        raise NotImplementedError("get_commit")
+        raw = self.client.get_commit(self._repo_id, sha)
+        return ActionResult(
+            data=map_commit(raw),
+            type="gitlab",
+            raw=raw,
+            meta={},
+        )
 
     @catch_provider_exception
     def get_commits(
@@ -476,7 +494,13 @@ class GitLabProvider:
         end_sha: CommitSHA,
         request_options: RequestOptions | None = None,
     ) -> PaginatedActionResult[Commit]:
-        raise NotImplementedError("compare_commits")
+        raw = self.client.compare_commits(self._repo_id, start_sha, end_sha)
+        return PaginatedActionResult(
+            data=[map_commit(c) for c in raw["commits"]],
+            type="gitlab",
+            raw=raw,
+            meta=_DEFAULT_PAGINATED_META,
+        )
 
     @catch_provider_exception
     def get_tree(
@@ -519,7 +543,31 @@ class GitLabProvider:
         pagination: PaginationParams | None = None,
         request_options: RequestOptions | None = None,
     ) -> PaginatedActionResult[PullRequestFile]:
-        raise NotImplementedError("get_pull_request_files")
+        raw = self.client.get_merge_request_diffs(self._repo_id, pull_request_id)
+        return PaginatedActionResult(
+            data=[
+                PullRequestFile(
+                    filename=diff["new_path"],
+                    previous_filename=(
+                        diff["old_path"] if diff["old_path"] != diff["new_path"] else None
+                    ),
+                    status=(
+                        "added"
+                        if diff["new_file"]
+                        else "removed"
+                        if diff["deleted_file"]
+                        else "modified"
+                    ),
+                    changes=0,  # @todo
+                    patch=diff.get("diff"),
+                    sha="",  # @todo
+                )
+                for diff in raw
+            ],
+            type="gitlab",
+            raw=raw,
+            meta=_DEFAULT_PAGINATED_META,
+        )
 
     @catch_provider_exception
     def get_pull_request_commits(
@@ -528,7 +576,24 @@ class GitLabProvider:
         pagination: PaginationParams | None = None,
         request_options: RequestOptions | None = None,
     ) -> PaginatedActionResult[PullRequestCommit]:
-        raise NotImplementedError("get_pull_request_commits")
+        raw = self.client.get_merge_request_commits(self._repo_id, pull_request_id)
+        return PaginatedActionResult(
+            data=[
+                PullRequestCommit(
+                    sha=commit["id"],
+                    message=commit["message"],
+                    author=CommitAuthor(
+                        name=commit["author_name"],
+                        email=commit["author_email"],
+                        date=datetime.datetime.fromisoformat(commit["authored_date"]),
+                    ),
+                )
+                for commit in raw
+            ],
+            type="gitlab",
+            raw=raw,
+            meta=_DEFAULT_PAGINATED_META,
+        )
 
     @catch_provider_exception
     def get_pull_request_diff(

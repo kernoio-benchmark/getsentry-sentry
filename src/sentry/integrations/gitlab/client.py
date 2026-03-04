@@ -591,6 +591,12 @@ class GitLabApiClient(IntegrationProxyClient, RepositoryClient, CommitContextCli
         # Gitlab can return 404 or 400 if the file doesn't exist
         return self.head_cached(request_path, params={"ref": version})
 
+    def get_file_content(self, project_id: str, path: str, ref: str | None):
+        return self.get(
+            GitLabApiClientPath.file.format(project=project_id, path=quote(path, safe="")),
+            params={"ref": ref},
+        )
+
     def get_file(
         self, repo: Repository, path: str, ref: str | None, codeowners: bool = False
     ) -> str:
@@ -628,3 +634,11 @@ class GitLabApiClient(IntegrationProxyClient, RepositoryClient, CommitContextCli
         project_id = repo.config["project_id"]
         path = GitLabApiClientPath.build_pr_diffs(project=project_id, pr_key=pr.key, unidiff=True)
         return self.get(path)
+
+    def get_merge_request_diffs(self, project_id: str, pr_key: str) -> list[dict[str, Any]]:
+        return self.get(GitLabApiClientPath.pr_diffs.format(project=project_id, pr_key=pr_key))
+
+    def get_merge_request_commits(self, project_id: str, pr_key: str) -> list[dict[str, Any]]:
+        return self.get(
+            GitLabApiClientPath.merge_request_commits.format(project_id=project_id, pr_key=pr_key)
+        )

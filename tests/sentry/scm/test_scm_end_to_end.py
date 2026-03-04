@@ -1,3 +1,4 @@
+import base64
 from collections.abc import Callable
 from datetime import datetime
 from typing import Literal
@@ -318,3 +319,79 @@ def test_branches(switch: Switch, service: Service, client: SourceCodeManagerRPC
             "ref": branch,
             "sha": "6d8ca33dae268d3c5835e721e5702ef9dcb43c8c",
         }
+
+
+def test_file_content(switch: Switch, client: SourceCodeManagerRPCClient) -> None:
+    github_content = "IyB0ZXN0LVNlbnRyeS1JbnRlZ3JhdGlvbi1EZXYtamFjcXVldjYKVGVzdCBy\nZXBvIGZvciBteSBkZXZlbG9wbWVudHMgaW4gU2VudHJ5J3MgR2l0SHViIEFw\ncAo=\n"
+    gitlab_content = github_content.replace("\n", "")
+    assert (
+        base64.b64decode(github_content).decode("utf-8")
+        == "# test-Sentry-Integration-Dev-jacquev6\nTest repo for my developments in Sentry's GitHub App\n"
+    )
+    assert client.get_file_content(path="README.md", ref="main")["data"] == {
+        "content": switch(github_content, gitlab_content),
+        "encoding": "base64",
+        "path": "README.md",
+        "sha": "d96986775b6793cac0a358b35650de94752a9530",
+        "size": 92,
+    }
+
+
+def test_compare_commits(switch: Switch, client: SourceCodeManagerRPCClient) -> None:
+    assert client.compare_commits(
+        start_sha="0941ee0a9eac9914cfddf5adec7a9558a2f1c447",
+        end_sha="6d8ca33dae268d3c5835e721e5702ef9dcb43c8c",
+    )["data"] == [
+        {
+            "id": "6d8ca33dae268d3c5835e721e5702ef9dcb43c8c",
+            "message": switch("Add blah", "Add blah\n"),
+            "author": {
+                "name": "Vincent Jacques",
+                "email": "vincent@vincent-jacques.net",
+                "date": datetime.fromisoformat("2026-02-26T08:47:45Z"),
+            },
+            "files": switch([], None),
+        }
+    ]
+
+
+def test_get_commit(switch: Switch, client: SourceCodeManagerRPCClient) -> None:
+    assert client.get_commit(sha="6d8ca33dae268d3c5835e721e5702ef9dcb43c8c")["data"] == {
+        "id": "6d8ca33dae268d3c5835e721e5702ef9dcb43c8c",
+        "message": switch("Add blah", "Add blah\n"),
+        "author": {
+            "name": "Vincent Jacques",
+            "email": "vincent@vincent-jacques.net",
+            "date": datetime.fromisoformat("2026-02-26T08:47:45Z"),
+        },
+        "files": switch([{"filename": "BLAH.md", "status": "added", "patch": None}], None),
+    }
+
+
+def test_get_pull_request_files(switch: Switch, client: SourceCodeManagerRPCClient) -> None:
+    pull_request_id = switch("2", "1")
+    assert client.get_pull_request_files(pull_request_id)["data"] == [
+        {
+            "changes": 0,
+            "filename": "BLAH.md",
+            "previous_filename": None,
+            "sha": switch("e69de29bb2d1d6434b8b29ae775ad8c2e48c5391", ""),
+            "status": "added",
+            "patch": switch(None, ""),
+        }
+    ]
+
+
+def test_get_pull_request_commits(switch: Switch, client: SourceCodeManagerRPCClient) -> None:
+    pull_request_id = switch("2", "1")
+    assert client.get_pull_request_commits(pull_request_id)["data"] == [
+        {
+            "sha": "6d8ca33dae268d3c5835e721e5702ef9dcb43c8c",
+            "message": switch("Add blah", "Add blah\n"),
+            "author": {
+                "name": "Vincent Jacques",
+                "email": "vincent@vincent-jacques.net",
+                "date": datetime.fromisoformat("2026-02-26T08:47:45Z"),
+            },
+        }
+    ]
