@@ -14,7 +14,6 @@ import FieldGroup from 'sentry/components/forms/fieldGroup';
 import RadioField from 'sentry/components/forms/fields/radioField';
 import {IconChevron} from 'sentry/icons';
 import {t} from 'sentry/locale';
-import {space} from 'sentry/styles/space';
 import type {Organization} from 'sentry/types/organization';
 import type {Project} from 'sentry/types/project';
 import withOrganization from 'sentry/utils/withOrganization';
@@ -284,7 +283,7 @@ class Form extends Component<Props<Values, KeysOfUnion<Values>>, State> {
                   suggestions={sourceSuggestions}
                 />
                 {containsRootDeepWildcard && (
-                  <Alert variant="warning" style={{marginTop: space(1)}}>
+                  <Alert variant="warning" css={theme => ({marginTop: theme.space.md})}>
                     {t(
                       `Deep wildcards ('**') apply to all datasets unless negated (eg. ** || !$logs.**)`
                     )}
