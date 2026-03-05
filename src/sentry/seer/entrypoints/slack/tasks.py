@@ -38,10 +38,7 @@ def process_mention_for_slack(
         SlackEntrypointInteractionType,
     )
     from sentry.seer.entrypoints.operator import SeerOperator
-    from sentry.seer.entrypoints.slack.entrypoint import (
-        SlackEntrypoint,
-        SlackExplorerCompletionHook,
-    )
+    from sentry.seer.entrypoints.slack.entrypoint import SlackEntrypoint
     from sentry.seer.entrypoints.slack.mention import build_thread_context, extract_prompt
 
     with SlackEntrypointEventLifecycleMetric(
@@ -103,7 +100,6 @@ def process_mention_for_slack(
             user=None,
             prompt=prompt,
             on_page_context=thread_context,
-            on_completion_hook=SlackExplorerCompletionHook,
             category_key="slack_thread",
             category_value=f"{channel_id}:{entrypoint.thread_ts}",
         )
