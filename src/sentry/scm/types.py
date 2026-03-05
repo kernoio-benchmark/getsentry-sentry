@@ -231,7 +231,7 @@ class PaginatedActionResult[T](TypedDict):
 class Repository(TypedDict):
     """Identifies a repository within a Sentry integration."""
 
-    integration_id: int
+    integration_id: int | None
     name: str
     organization_id: int
     status: int

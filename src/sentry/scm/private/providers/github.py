@@ -238,7 +238,6 @@ class GitHubProvider:
     ) -> None:
         self.client.delete_comment_reaction(self.repository["name"], comment_id, reaction_id)
 
-    @catch_provider_exception
     def get_pull_request_comment_reactions(
         self,
         pull_request_id: str,
@@ -250,13 +249,11 @@ class GitHubProvider:
             pull_request_id, comment_id, pagination, request_options
         )
 
-    @catch_provider_exception
     def create_pull_request_comment_reaction(
         self, pull_request_id: str, comment_id: str, reaction: Reaction
     ) -> ActionResult[ReactionResult]:
         return self.create_issue_comment_reaction(pull_request_id, comment_id, reaction)
 
-    @catch_provider_exception
     def delete_pull_request_comment_reaction(
         self, pull_request_id: str, comment_id: str, reaction_id: str
     ) -> None:
@@ -289,7 +286,6 @@ class GitHubProvider:
     def delete_issue_reaction(self, issue_id: str, reaction_id: str) -> None:
         self.client.delete_issue_reaction(self.repository["name"], issue_id, reaction_id)
 
-    @catch_provider_exception
     def get_pull_request_reactions(
         self,
         pull_request_id: str,
@@ -298,13 +294,11 @@ class GitHubProvider:
     ) -> PaginatedActionResult[ReactionResult]:
         return self.get_issue_reactions(pull_request_id, pagination, request_options)
 
-    @catch_provider_exception
     def create_pull_request_reaction(
         self, pull_request_id: str, reaction: Reaction
     ) -> ActionResult[ReactionResult]:
         return self.create_issue_reaction(pull_request_id, reaction)
 
-    @catch_provider_exception
     def delete_pull_request_reaction(self, pull_request_id: str, reaction_id: str) -> None:
         return self.delete_issue_reaction(pull_request_id, reaction_id)
 
