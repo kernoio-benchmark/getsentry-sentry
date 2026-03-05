@@ -1813,7 +1813,7 @@ class SearchVisitor(NodeVisitor[list[QueryToken]]):
             str,  # ']'
             Node,  # terminating lookahead
         ],
-    ) -> list[list[SearchKey]]:
+    ) -> list[SearchKey]:
         return process_list(children[1], children[2])
 
     def visit_has_in_filter(
@@ -1824,11 +1824,11 @@ class SearchVisitor(NodeVisitor[list[QueryToken]]):
             Node,  # has: lookahead
             SearchKey,  # SearchKey('has')
             Node,  # :
-            list[list[SearchKey]],
+            list[SearchKey],
         ],
     ) -> ParenExpression:
         (negation, _, _, _, search_key_lst) = children
-        search_keys: list[SearchKey] = [sk for sublist in search_key_lst for sk in sublist]
+        search_keys: list[SearchKey] = search_key_lst
 
         # if it matched search value instead, it's not a valid key
         if any(isinstance(search_key, SearchValue) for search_key in search_keys):
