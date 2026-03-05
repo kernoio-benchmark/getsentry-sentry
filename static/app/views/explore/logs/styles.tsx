@@ -140,13 +140,10 @@ export const LogTableBody = styled(TableBody)<{
     padding-top: ${space(1)};
     padding-bottom: ${space(1)};
     `}
-  ${p =>
-    p.expanded
-      ? ``
-      : `
-    overflow-y: scroll;
-    max-height: 70vh;
-    min-height: 5rem;`}
+  overflow-y: scroll;
+  max-height: ${p =>
+    p.expanded ? `calc(100vh - ${GRID_BODY_ROW_HEIGHT * 1.5}px)` : '50vh'};
+  min-height: 5rem;
 `;
 
 export const LogDetailTableBodyCell = styled(TableBodyCell)`
@@ -303,6 +300,7 @@ export const LogsItemContainer = styled('div')`
   flex: 1 1 auto;
   margin-top: ${p => p.theme.space.md};
   margin-bottom: ${p => p.theme.space.md};
+  position: relative;
 `;
 
 export const LogsTableActionsContainer = styled(LogsItemContainer)`

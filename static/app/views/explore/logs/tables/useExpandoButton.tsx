@@ -1,4 +1,5 @@
-import {useState} from 'react';
+import {useLayoutEffect, useRef, useState} from 'react';
+import styled from '@emotion/styled';
 
 import {Button} from '@sentry/scraps/button';
 
@@ -8,29 +9,53 @@ import {TableActionButton} from 'sentry/views/explore/components/tableActionButt
 
 export function useExpandoButton(onToggle: () => void) {
   const [expanded, setExpanded] = useState(false);
+  const ref = useRef<HTMLButtonElement>(null);
 
   const [Icon, text] = expanded
-    ? [IconContract, t('Collapse Table')]
-    : [IconExpand, t('Expand Table')];
+    ? [IconContract, t('Collapse')]
+    : [IconExpand, t('Expand')];
 
   const toggleExpanded = () => {
     setExpanded(!expanded);
     onToggle();
   };
 
+  useLayoutEffect(() => {
+    if (expanded) {
+      ref.current?.scrollIntoView({
+        block: 'start',
+      });
+    }
+  }, [expanded]);
+
+  const buttonProps = {
+    'aria-label': text,
+    icon: <Icon />,
+    onClick: toggleExpanded,
+    ref,
+    size: 'sm',
+  } as const;
+
   return {
     expanded,
     expando: (
-      <TableActionButton
-        mobile={
-          <Button onClick={toggleExpanded} icon={<Icon />} size="sm" aria-label={text} />
-        }
-        desktop={
-          <Button onClick={toggleExpanded} icon={<Icon />} size="sm" aria-label={text}>
-            {text}
-          </Button>
-        }
-      />
+      <ExpandoContainer>
+        <TableActionButton
+          mobile={<ExpandoButton {...buttonProps} />}
+          desktop={<ExpandoButton {...buttonProps}>{text}</ExpandoButton>}
+        />
+      </ExpandoContainer>
     ),
   };
 }
+
+const ExpandoButton = styled(Button)`
+  scroll-margin-top: 0.75rem;
+`;
+
+const ExpandoContainer = styled('div')`
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 1;
+`;

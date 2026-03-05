@@ -102,7 +102,6 @@ type LogsTableProps = {
 const {info, fmt} = Sentry.logger;
 
 const LOGS_GRID_SCROLL_PIXEL_REVERSE_THRESHOLD = LOGS_GRID_BODY_ROW_HEIGHT * 2; // If you are less than this number of pixels from the top of the table while scrolling backward, fetch the previous page.
-const LOGS_OVERSCAN_AMOUNT = 50; // How many items to render beyond the visible area.
 
 export function LogsInfiniteTable({
   embedded = false,
@@ -253,10 +252,14 @@ export function LogsInfiniteTable({
     return terms;
   }, [search, localOnlyItemFilters?.filterText]);
 
-  const virtualizer = useVirtualizer({
+  const {expanded, expando} = useExpandoButton(() => {
+    virtualizer.measure();
+  });
+
+  const virtualizer = useVirtualizer<HTMLElement, Element>({
     count: data?.length ?? 0,
     estimateSize,
-    overscan: LOGS_OVERSCAN_AMOUNT,
+    overscan: expanded ? 25 : 10,
     getScrollElement: () => tableBodyRef?.current,
     getItemKey: (index: number) => data?.[index]?.[OurLogKnownFieldKey.ID] ?? index,
   });
@@ -415,10 +418,6 @@ export function LogsInfiniteTable({
     };
   }, []);
 
-  const {expanded, expando} = useExpandoButton(() => {
-    virtualizer.measure();
-  });
-
   // For replay context, render empty states outside the table for proper centering
   if (hasReplay && (isPending || isError || isEmpty)) {
     return (
@@ -442,6 +441,7 @@ export function LogsInfiniteTable({
 
   return (
     <Fragment>
+      {expando}
       <Table
         ref={tableRef}
         style={initialTableStyles}
@@ -459,7 +459,6 @@ export function LogsInfiniteTable({
             onResizeMouseDown={onResizeMouseDown}
           />
         )}
-        <div style={{position: 'absolute', top: 8, right: 8}}>{expando}</div>
         <LogTableBody
           showHeader={!embedded}
           ref={tableBodyRef}
@@ -532,24 +531,26 @@ export function LogsInfiniteTable({
           )}
         </LogTableBody>
       </Table>
-      <FloatingBackToTopContainer
-        inReplay={!!embeddedOptions?.replay}
-        tableLeft={tableRef.current?.getBoundingClientRect().left ?? 0}
-        tableWidth={tableRef.current?.getBoundingClientRect().width ?? 0}
-      >
-        {!embeddedOptions?.replay && (
-          <BackToTopButton
-            virtualizer={virtualizer}
-            hidden={
-              isPending || ((firstItemIndex ?? 0) === 0 && (scrollOffset ?? 0) < 550)
-            }
-            setIsFunctionScrolling={setIsFunctionScrolling}
-          />
-        )}
-        {embeddedOptions?.replay && showJumpUpButton ? (
-          <JumpButtons jump="up" onClick={onClickToJump} tableHeaderHeight={0} />
-        ) : null}
-      </FloatingBackToTopContainer>
+      {expanded && (
+        <FloatingBackToTopContainer
+          inReplay={!!embeddedOptions?.replay}
+          tableLeft={tableRef.current?.getBoundingClientRect().left ?? 0}
+          tableWidth={tableRef.current?.getBoundingClientRect().width ?? 0}
+        >
+          {!embeddedOptions?.replay && (
+            <BackToTopButton
+              virtualizer={virtualizer}
+              hidden={
+                isPending || ((firstItemIndex ?? 0) === 0 && (scrollOffset ?? 0) < 550)
+              }
+              setIsFunctionScrolling={setIsFunctionScrolling}
+            />
+          )}
+          {embeddedOptions?.replay && showJumpUpButton ? (
+            <JumpButtons jump="up" onClick={onClickToJump} tableHeaderHeight={0} />
+          ) : null}
+        </FloatingBackToTopContainer>
+      )}
       <FloatingBottomContainer
         tableWidth={tableRef.current?.getBoundingClientRect().width ?? 0}
       >
@@ -768,10 +769,7 @@ function BackToTopButton({
 }: {
   hidden: boolean;
   setIsFunctionScrolling: (isScrolling: boolean) => void;
-  virtualizer:
-    | Virtualizer<HTMLTableSectionElement, Element>
-    | Virtualizer<HTMLElement, Element>
-    | Virtualizer<Window, Element>;
+  virtualizer: Virtualizer<HTMLElement, Element> | Virtualizer<Window, Element>;
 }) {
   if (hidden) {
     return null;
