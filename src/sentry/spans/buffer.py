@@ -529,7 +529,6 @@ class SpansBuffer:
         for shard, queue_key, segment_key in segment_keys:
             segment_span_id = segment_key_to_span_id(segment_key).decode("ascii")
             segment = segments.get(segment_key, [])
-            project_id, _, _ = parse_segment_key(segment_key)
             if len(segment) >= max_segments_per_shard:
                 any_shard_at_limit = True
 

@@ -351,7 +351,7 @@ class SpanFlusher(ProcessingStrategy[FilteredPayload | int]):
                                     project_id=project_id,
                                     key_id=None,
                                     outcome=Outcome.INVALID,
-                                    reason="segment_too_large",
+                                    reason="segment_produce_failed",
                                     category=DataCategory.SPAN_INDEXED,
                                     quantity=dropped,
                                 )
