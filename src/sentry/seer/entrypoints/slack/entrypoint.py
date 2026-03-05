@@ -17,7 +17,7 @@ from sentry.notifications.platform.templates.seer import (
 )
 from sentry.notifications.utils.actions import BlockKitMessageAction
 from sentry.seer.autofix.utils import AutofixStoppingPoint
-from sentry.seer.entrypoints.cache import SeerOperatorAutofixCache, SeerOperatorExplorerCache
+from sentry.seer.entrypoints.cache import SeerOperatorAutofixCache
 from sentry.seer.entrypoints.registry import entrypoint_registry
 from sentry.seer.entrypoints.slack.messaging import (
     schedule_all_thread_updates,
@@ -26,7 +26,6 @@ from sentry.seer.entrypoints.slack.messaging import (
 )
 from sentry.seer.entrypoints.types import SeerEntrypoint, SeerEntrypointKey
 from sentry.seer.explorer.client_utils import has_seer_explorer_access_with_detail
-from sentry.seer.explorer.on_completion_hook import ExplorerOnCompletionHook
 from sentry.sentry_apps.metrics import SentryAppEventType
 from sentry.utils import metrics
 from sentry.utils.locking import UnableToAcquireLock
@@ -484,41 +483,3 @@ def prepare_slack_thread_for_autofix_updates(
         "seer.entrypoint.slack.prepare_thread.cache_populated",
         tags={"cache_source": cache_result["source"]},
     )
-
-
-class SlackExplorerCompletionHook(ExplorerOnCompletionHook):
-    """Completion hook that notifies Slack threads when an Explorer run finishes."""
-
-    @classmethod
-    def execute(cls, organization: Organization, run_id: int) -> None:
-        from sentry.seer.explorer.client_utils import fetch_run_status
-
-        cache_payload = SeerOperatorExplorerCache[SlackExplorerCachePayload].get(
-            entrypoint_key=str(SlackEntrypoint.key),
-            run_id=run_id,
-        )
-        if not cache_payload:
-            logger.info(
-                "seer.entrypoint.slack.explorer_completion.cache_miss",
-                extra={"run_id": run_id, "organization_id": organization.id},
-            )
-            return
-
-        summary = None
-        try:
-            state = fetch_run_status(run_id, organization)
-            for block in reversed(state.blocks):
-                if block.message.role == "assistant" and block.message.content:
-                    summary = block.message.content
-                    break
-        except Exception:
-            logger.exception(
-                "seer.entrypoint.slack.explorer_completion.fetch_run_failed",
-                extra={"run_id": run_id, "organization_id": organization.id},
-            )
-
-        SlackEntrypoint.on_explorer_update(
-            cache_payload=cache_payload,
-            summary=summary,
-            run_id=run_id,
-        )

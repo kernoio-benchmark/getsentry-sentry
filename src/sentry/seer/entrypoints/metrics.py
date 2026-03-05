@@ -23,6 +23,7 @@ class SeerOperatorInteractionType(StrEnum):
     ENTRYPOINT_ON_TRIGGER_EXPLORER_ERROR = "entrypoint_on_trigger_explorer_error"
     ENTRYPOINT_ON_TRIGGER_EXPLORER_SUCCESS = "entrypoint_on_trigger_explorer_success"
     ENTRYPOINT_CREATE_EXPLORER_CACHE_PAYLOAD = "entrypoint_create_explorer_cache_payload"
+    OPERATOR_PROCESS_EXPLORER_COMPLETION = "process_explorer_completion"
     OPERATOR_CACHE_SET_EXPLORER = "cache_set_explorer"
     OPERATOR_CACHE_GET_EXPLORER = "cache_get_explorer"
 
