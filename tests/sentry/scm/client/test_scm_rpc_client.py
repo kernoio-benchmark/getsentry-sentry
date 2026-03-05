@@ -686,7 +686,7 @@ class SimpleSuccessTest(NamedTuple):
                 "path": "path",
                 "side": "LEFT",
             },
-            f"{base_url}/{prefix}/create_review_comment_multiline_v1/",
+            f"{base_url}/{prefix}/create_review_comment_file_v1/",
             {"id": "73", "html_url": "http://blah", "path": "path", "body": "comment body"},
         ),
         SimpleSuccessTest(
@@ -699,7 +699,7 @@ class SimpleSuccessTest(NamedTuple):
                 "line": 42,
                 "side": "LEFT",
             },
-            f"{base_url}/{prefix}/create_review_comment_multiline_v1/",
+            f"{base_url}/{prefix}/create_review_comment_line_v1/",
             {"id": "73", "html_url": "http://blah", "path": "path", "body": "comment body"},
         ),
         SimpleSuccessTest(

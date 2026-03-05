@@ -73,7 +73,7 @@ def test_pull_requests(switch: Switch, client: SourceCodeManagerRPCClient) -> No
                 "https://gitlab.com/jacquev6-sentry/test-sentry-integration-dev-jacquev6/-/merge_requests/1",
             ),
             "head": {
-                "sha": "6d8ca33dae268d3c5835e721e5702ef9dcb43c8c",
+                "sha": "7497e018d01503b6abc3053b7896266115e631f6",
                 "ref": "topics/blah",
             },
             "base": {
@@ -299,7 +299,7 @@ def test_pull_request_reactions(
 def test_branches(switch: Switch, service: Service, client: SourceCodeManagerRPCClient) -> None:
     assert client.get_branch(branch="topics/blah")["data"] == {
         "ref": "topics/blah",
-        "sha": "6d8ca33dae268d3c5835e721e5702ef9dcb43c8c",
+        "sha": "7497e018d01503b6abc3053b7896266115e631f6",
     }
 
     branch = datetime.now().strftime("tests/%Y%m%d-%H%M%S")
@@ -372,12 +372,15 @@ def test_get_pull_request_files(switch: Switch, client: SourceCodeManagerRPCClie
     pull_request_id = switch("2", "1")
     assert client.get_pull_request_files(pull_request_id)["data"] == [
         {
-            "changes": 0,
+            "changes": switch(9, 0),
             "filename": "BLAH.md",
             "previous_filename": None,
-            "sha": switch("e69de29bb2d1d6434b8b29ae775ad8c2e48c5391", ""),
+            "sha": switch("07193989308c972f8a2d0f1b3a15c29ea4ac565b", ""),
             "status": "added",
-            "patch": switch(None, ""),
+            "patch": switch(
+                "@@ -0,0 +1,9 @@\n+1\n+2\n+3\n+4\n+5\n+6\n+7\n+8\n+9",
+                "@@ -0,0 +1,9 @@\n+1\n+2\n+3\n+4\n+5\n+6\n+7\n+8\n+9\n",
+            ),
         }
     ]
 
@@ -393,5 +396,57 @@ def test_get_pull_request_commits(switch: Switch, client: SourceCodeManagerRPCCl
                 "email": "vincent@vincent-jacques.net",
                 "date": datetime.fromisoformat("2026-02-26T08:47:45Z"),
             },
-        }
+        },
+        {
+            "sha": "7497e018d01503b6abc3053b7896266115e631f6",
+            "message": switch("Add content", "Add content\n"),
+            "author": {
+                "name": "Vincent Jacques",
+                "email": "vincent@vincent-jacques.net",
+                "date": datetime.fromisoformat("2026-03-05T11:15:50Z"),
+            },
+        },
     ]
+
+
+def test_reviews(service: Service, switch: Switch, client: SourceCodeManagerRPCClient) -> None:
+    pull_request_id = switch("2", "1")
+
+    body = f"A review comment, on a file, made by the API on {datetime.now()}."
+    comment_on_file = client.create_review_comment_file(
+        pull_request_id=pull_request_id,
+        commit_id="7497e018d01503b6abc3053b7896266115e631f6",
+        body=body,
+        path="BLAH.md",
+        side="RIGHT",
+    )
+    # We don't have getters for review comments, so our checks are limited
+    assert comment_on_file["data"]["body"] == body
+
+    body = f"A reply to the previous comment, made by the API on {datetime.now()}."
+    reply_comment = client.create_review_comment_reply(
+        pull_request_id=pull_request_id, body=body, comment_id=comment_on_file["data"]["id"]
+    )
+    assert reply_comment["data"]["body"] == body
+
+    if service == "gitlab":
+        # @todo Pass pull_request_id
+        client.resolve_review_thread(comment_on_file["data"]["id"])
+
+    if service == "gitlab":
+        body = f"A review comment, on line 3 of the file, made by the API on {datetime.now()}."
+        comment_on_line = client.create_review_comment_line(
+            pull_request_id=pull_request_id,
+            commit_id="7497e018d01503b6abc3053b7896266115e631f6",
+            body=body,
+            path="BLAH.md",
+            line=3,
+            side="RIGHT",
+        )
+        assert comment_on_line["data"]["body"] == body
+
+    # body = f"A review comment, on lines 3 to 5 of the file, made by the API on {datetime.now()}."
+    # comment_on_line = client.create_review_comment_multiline(
+    #     pull_request_id=pull_request_id, commit_id="7497e018d01503b6abc3053b7896266115e631f6", body=body, path="BLAH.md", start_line=3, start_side="RIGHT", end_line=5, end_side="RIGHT"
+    # )
+    # assert comment_on_line["data"]["body"] == body

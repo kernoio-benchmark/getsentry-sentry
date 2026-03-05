@@ -707,7 +707,7 @@ class SourceCodeManagerRPCClient:
     ) -> ActionResult[ReviewComment]:
         """Leave a review comment on a file."""
         return self._call(
-            "create_review_comment_multiline_v1",
+            "create_review_comment_file_v1",
             {
                 "pull_request_id": pull_request_id,
                 "commit_id": commit_id,
@@ -728,7 +728,7 @@ class SourceCodeManagerRPCClient:
     ) -> ActionResult[ReviewComment]:
         """Leave a review comment on a specific line in a file."""
         return self._call(
-            "create_review_comment_multiline_v1",
+            "create_review_comment_line_v1",
             {
                 "pull_request_id": pull_request_id,
                 "commit_id": commit_id,

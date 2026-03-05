@@ -106,34 +106,6 @@ class GitLabProvider:
 
     # @todo Factorize mapping from raw to return types
 
-    # @todo Move down to match GitHub provider
-    @catch_provider_exception
-    def get_pull_request(
-        self,
-        pull_request_id: str,
-        request_options: RequestOptions | None = None,
-    ) -> ActionResult[PullRequest]:
-        raw = self.client.get_merge_request(self._repo_id, pull_request_id)
-        return ActionResult(
-            data=PullRequest(
-                id=raw["id"],
-                number=raw["iid"],
-                title=raw["title"],
-                body=raw["description"] or None,
-                state="open" if raw["state"] == "opened" else "closed",
-                base=PullRequestBranch(ref=raw["target_branch"], sha=None),
-                head=PullRequestBranch(
-                    ref=raw["source_branch"],
-                    sha=raw["sha"],
-                ),
-                merged=raw["merged_at"] is not None,
-                html_url=raw["web_url"],
-            ),
-            type="gitlab",
-            raw=raw,
-            meta={},
-        )
-
     @catch_provider_exception
     def get_issue_comments(
         self,
@@ -175,6 +147,33 @@ class GitLabProvider:
         self.client.delete_issue_note(self._repo_id, issue_id, comment_id)
 
     @catch_provider_exception
+    def get_pull_request(
+        self,
+        pull_request_id: str,
+        request_options: RequestOptions | None = None,
+    ) -> ActionResult[PullRequest]:
+        raw = self.client.get_merge_request(self._repo_id, pull_request_id)
+        return ActionResult(
+            data=PullRequest(
+                id=raw["id"],
+                number=raw["iid"],
+                title=raw["title"],
+                body=raw["description"] or None,
+                state="open" if raw["state"] == "opened" else "closed",
+                base=PullRequestBranch(ref=raw["target_branch"], sha=None),
+                head=PullRequestBranch(
+                    ref=raw["source_branch"],
+                    sha=raw["sha"],
+                ),
+                merged=raw["merged_at"] is not None,
+                html_url=raw["web_url"],
+            ),
+            type="gitlab",
+            raw=raw,
+            meta={},
+        )
+
+    @catch_provider_exception
     def get_pull_request_comments(
         self,
         pull_request_id: str,
@@ -190,6 +189,10 @@ class GitLabProvider:
                     author=Author(id=note["author"]["id"], username=note["author"]["username"]),
                 )
                 for note in raw
+                if (
+                    not note["system"]  # Filter out system notes
+                    and note.get("position") is None  # Filter out review comments
+                )
             ],
             type="gitlab",
             raw=raw,
@@ -270,7 +273,6 @@ class GitLabProvider:
         pagination: PaginationParams | None = None,
         request_options: RequestOptions | None = None,
     ) -> PaginatedActionResult[ReactionResult]:
-        pull_request_id = "1"  # @todo GitLab needs the MR ID to get note awards
         raw = self.client.get_merge_request_note_awards(self._repo_id, pull_request_id, comment_id)
         return PaginatedActionResult(
             data=[
@@ -291,7 +293,6 @@ class GitLabProvider:
     def create_pull_request_comment_reaction(
         self, pull_request_id: str, comment_id: str, reaction: Reaction
     ) -> ActionResult[ReactionResult]:
-        pull_request_id = "1"  # @todo GitLab needs the MR ID to create a note award
         raw = self.client.create_merge_request_note_award(
             self._repo_id, pull_request_id, comment_id, AWARD_NAME_BY_REACTION[reaction]
         )
@@ -588,7 +589,7 @@ class GitLabProvider:
                         date=datetime.datetime.fromisoformat(commit["authored_date"]),
                     ),
                 )
-                for commit in raw
+                for commit in reversed(raw)  # GitLab returns commits in reverse order
             ],
             type="gitlab",
             raw=raw,
@@ -726,7 +727,33 @@ class GitLabProvider:
         path: str,
         side: ReviewSide,
     ) -> ActionResult[ReviewComment]:
-        raise NotImplementedError("create_review_comment_file")
+        versions = self.client.get_merge_request_versions(self._repo_id, pull_request_id)
+        raw = self.client.create_merge_request_discussion(
+            self._repo_id,
+            pull_request_id,
+            {
+                "body": body,
+                "position": {
+                    "position_type": "file",
+                    "base_sha": versions[0]["base_commit_sha"],
+                    "head_sha": versions[0]["head_commit_sha"],
+                    "start_sha": versions[0]["start_commit_sha"],
+                    "new_path": path,
+                    "old_path": path,
+                },
+            },
+        )
+        return ActionResult(
+            data=ReviewComment(
+                id=raw["id"],  # Conversation ID (the note also has an ID)
+                html_url=None,
+                path=raw["notes"][0]["position"]["new_path"],
+                body=raw["notes"][0]["body"],
+            ),
+            type="gitlab",
+            raw=raw,
+            meta={},
+        )
 
     @catch_provider_exception
     def create_review_comment_line(
@@ -738,7 +765,34 @@ class GitLabProvider:
         line: int,
         side: ReviewSide,
     ) -> ActionResult[ReviewComment]:
-        raise NotImplementedError("create_review_comment_line")
+        versions = self.client.get_merge_request_versions(self._repo_id, pull_request_id)
+        raw = self.client.create_merge_request_discussion(
+            self._repo_id,
+            pull_request_id,
+            {
+                "body": body,
+                "position": {
+                    "position_type": "text",
+                    "base_sha": versions[0]["base_commit_sha"],
+                    "head_sha": versions[0]["head_commit_sha"],
+                    "start_sha": versions[0]["start_commit_sha"],
+                    "new_path": path,
+                    "old_path": path,
+                    "new_line": line,
+                },
+            },
+        )
+        return ActionResult(
+            data=ReviewComment(
+                id=raw["id"],  # Conversation ID (the note also has an ID)
+                html_url=None,
+                path=raw["notes"][0]["position"]["new_path"],
+                body=raw["notes"][0]["body"],
+            ),
+            type="gitlab",
+            raw=raw,
+            meta={},
+        )
 
     @catch_provider_exception
     def create_review_comment_multiline(
@@ -761,7 +815,23 @@ class GitLabProvider:
         body: str,
         comment_id: str,
     ) -> ActionResult[ReviewComment]:
-        raise NotImplementedError("create_review_comment_reply")
+        raw = self.client.create_merge_request_discussion_note(
+            self._repo_id,
+            pull_request_id,
+            comment_id,
+            {"body": body},
+        )
+        return ActionResult(
+            data=ReviewComment(
+                id=comment_id,  # To be consistent with create_review_comment_file, we return the conversation ID here, not the note ID
+                html_url=None,
+                path=raw["position"]["new_path"],
+                body=raw["body"],
+            ),
+            type="gitlab",
+            raw=raw,
+            meta={},
+        )
 
     @catch_provider_exception
     def create_review(
@@ -812,7 +882,8 @@ class GitLabProvider:
 
     @catch_provider_exception
     def resolve_review_thread(self, thread_node_id: str) -> None:
-        raise NotImplementedError("resolve_review_thread")
+        pull_request_id = "1"  # @todo GitLab needs the pull request ID; pass it as a parameter
+        self.client.resolve_merge_request_discussion(self._repo_id, pull_request_id, thread_node_id)
 
 
 def map_commit(raw: dict[str, Any]) -> Commit:

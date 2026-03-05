@@ -345,7 +345,7 @@ class ReviewComment(TypedDict):
     """Provider-agnostic representation of a review comment."""
 
     id: ResourceId
-    html_url: str
+    html_url: str | None
     path: str
     body: str
 

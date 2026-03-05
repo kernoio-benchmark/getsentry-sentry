@@ -163,7 +163,7 @@ class ReviewCommentInput(pydantic.BaseModel):
 
 class ReviewComment(pydantic.BaseModel):
     id: ResourceId
-    html_url: str
+    html_url: str | None
     path: str
     body: str
 

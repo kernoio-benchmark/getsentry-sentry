@@ -57,6 +57,14 @@ class GitLabApiClientPath:
     merge_request_note_award = (
         "/projects/{project_id}/merge_requests/{pr_key}/notes/{note_id}/award_emoji/{award_id}"
     )
+    merge_request_versions = "/projects/{project_id}/merge_requests/{pr_key}/versions"
+    merge_request_discussions = "/projects/{project_id}/merge_requests/{pr_key}/discussions"
+    merge_request_discussion = (
+        "/projects/{project_id}/merge_requests/{pr_key}/discussions/{discussion_id}"
+    )
+    merge_request_discussion_notes = (
+        "/projects/{project_id}/merge_requests/{pr_key}/discussions/{discussion_id}/notes"
+    )
     pr_diffs = "/projects/{project}/merge_requests/{pr_key}/diffs"
     project = "/projects/{project}"
     project_issues = "/projects/{project}/issues"

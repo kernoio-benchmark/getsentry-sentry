@@ -339,6 +339,41 @@ class GitLabApiClient(IntegrationProxyClient, RepositoryClient, CommitContextCli
             GitLabApiClientPath.merge_request_notes.format(project_id=project_id, pr_key=pr_key)
         )
 
+    def get_merge_request_versions(self, project_id: str, pr_key: str) -> Any:
+        return self.get(
+            GitLabApiClientPath.merge_request_versions.format(project_id=project_id, pr_key=pr_key)
+        )
+
+    def create_merge_request_discussion(
+        self, project_id: str, pr_key: str, data: dict[str, Any]
+    ) -> Any:
+        return self.post(
+            GitLabApiClientPath.merge_request_discussions.format(
+                project_id=project_id, pr_key=pr_key
+            ),
+            data=data,
+        )
+
+    def create_merge_request_discussion_note(
+        self, project_id: str, pr_key: str, discussion_id: str, data: dict[str, Any]
+    ) -> Any:
+        return self.post(
+            GitLabApiClientPath.merge_request_discussion_notes.format(
+                project_id=project_id, pr_key=pr_key, discussion_id=discussion_id
+            ),
+            data=data,
+        )
+
+    def resolve_merge_request_discussion(
+        self, project_id: str, pr_key: str, discussion_id: str, resolved=True
+    ) -> Any:
+        return self.put(
+            GitLabApiClientPath.merge_request_discussion.format(
+                project_id=project_id, pr_key=pr_key, discussion_id=discussion_id
+            ),
+            params={"resolved": resolved},
+        )
+
     def create_pr_comment(self, repo: Repository, pr: PullRequest, data: dict[str, Any]) -> Any:
         return self.create_merge_request_note(
             project_id=repo.config["project_id"], pr_key=pr.key, data=data
