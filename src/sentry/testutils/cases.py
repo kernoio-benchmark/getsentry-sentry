@@ -88,13 +88,13 @@ from sentry.eventstream.item_helpers import (
     serialize_event_data_as_item,
 )
 from sentry.eventstream.snuba import SnubaEventStream
-from sentry.issue_detection.performance_detection import detect_performance_problems
-from sentry.issues.grouptype import (
-    NoiseConfig,
+from sentry.issue_detection.grouptype import (
     PerformanceFileIOMainThreadGroupType,
     PerformanceNPlusOneGroupType,
     PerformanceSlowDBQueryGroupType,
 )
+from sentry.issue_detection.performance_detection import detect_performance_problems
+from sentry.issues.grouptype import NoiseConfig
 from sentry.issues.ingest import send_issue_occurrence_to_eventstream
 from sentry.mail import mail_adapter
 from sentry.models.apitoken import ApiToken

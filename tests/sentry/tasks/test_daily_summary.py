@@ -10,7 +10,7 @@ from django.conf import settings
 
 from sentry.constants import DataCategory
 from sentry.integrations.types import ExternalProviders
-from sentry.issues.grouptype import PerformanceNPlusOneGroupType
+from sentry.issue_detection.grouptype import PerformanceNPlusOneGroupType
 from sentry.models.activity import Activity
 from sentry.models.group import GroupStatus
 from sentry.notifications.notifications.daily_summary import DailySummaryNotification
