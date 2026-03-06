@@ -758,7 +758,12 @@ class SpansBuffer:
                     project_id, trace_id, _ = parse_segment_key(segment_key)
                     redirect_map_key = b"span-buf:ssr:{%s:%s}" % (project_id, trace_id)
 
-                    for span_batch in itertools.batched(flushed_segment.spans, hdel_batch_size):
+                    if hdel_batch_size > 0:
+                        span_batches = itertools.batched(flushed_segment.spans, hdel_batch_size)
+                    else:
+                        span_batches = [flushed_segment.spans]
+
+                    for span_batch in span_batches:
                         span_ids = [output_span.payload["span_id"] for output_span in span_batch]
                         p.hdel(redirect_map_key, *span_ids)
 
