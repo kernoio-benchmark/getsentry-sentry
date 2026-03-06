@@ -260,7 +260,11 @@ export function GridLineOverlay({
           start: dateFromPosition(startX).startOf('minute').toDate(),
           end: dateFromPosition(endX).add(1, 'minute').startOf('minute').toDate(),
         },
-        {location, push: navigate, replace: path => navigate(path, {replace: true})} as any,
+        {
+          location,
+          push: navigate,
+          replace: path => navigate(path, {replace: true}),
+        } as any,
         {keepCursor: !resetPaginationOnZoom}
       ),
     [dateFromPosition, resetPaginationOnZoom, location, navigate]
