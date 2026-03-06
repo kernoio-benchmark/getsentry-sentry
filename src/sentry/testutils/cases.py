@@ -1273,13 +1273,18 @@ class SnubaTestCase(BaseTestCase):
         )
         assert response.status_code == 200
 
-    def store_eap_items(self, items: Sequence[TraceItem]) -> None:
+    def store_eap_items(self, items: Sequence[TraceItem], reverse_ids: bool = False) -> None:
         files = {f"eap_items_{i}": item.SerializeToString() for i, item in enumerate(items)}
         response = requests.post(
             settings.SENTRY_SNUBA + EAP_ITEMS_INSERT_ENDPOINT,
             files=files,
         )
         assert response.status_code == 200
+        if reverse_ids:
+            for item in items:
+                # Reverse the ids since these are stored in little endian in
+                # ClickHouse and end up reversed.
+                item.item_id = item.item_id[::-1]
 
     def store_issues(self, issues):
         assert (
@@ -4124,22 +4129,6 @@ class ReplayEAPTestCase(BaseTestCase):
             client_sample_rate=1.0,
             server_sample_rate=1.0,
         )
-
-    def store_replays_eap(self, replays):
-        import requests
-        from django.conf import settings
-
-        files = {f"replay_{i}": replay.SerializeToString() for i, replay in enumerate(replays)}
-        response = requests.post(
-            settings.SENTRY_SNUBA + EAP_ITEMS_INSERT_ENDPOINT,
-            files=files,
-        )
-        assert response.status_code == 200
-
-        for replay in replays:
-            # Reverse the ids here since these are stored in little endian in Clickhouse
-            # and end up reversed.
-            replay.item_id = replay.item_id[::-1]
 
 
 class UptimeResultEAPTestCase(BaseTestCase):
