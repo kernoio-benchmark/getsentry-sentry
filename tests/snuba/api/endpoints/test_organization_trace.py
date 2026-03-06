@@ -668,7 +668,7 @@ class OrganizationEventsTraceEndpointTest(
             check_duration_us=500000,
         )
 
-        self.store_uptime_results([redirect_result, final_result])
+        self.store_eap_items([redirect_result, final_result], reverse_ids=True)
 
         with self.feature(features):
             response = self.client_get(
@@ -698,7 +698,7 @@ class OrganizationEventsTraceEndpointTest(
             scheduled_check_time=self.day_ago,
         )
 
-        self.store_uptime_results([uptime_result])
+        self.store_eap_items([uptime_result], reverse_ids=True)
 
         with self.feature(self.FEATURES):
             response = self.client_get(
@@ -752,7 +752,7 @@ class OrganizationEventsTraceEndpointTest(
 
         features = self.FEATURES
 
-        self.store_uptime_results([redirect_result, final_result])
+        self.store_eap_items([redirect_result, final_result], reverse_ids=True)
 
         with self.feature(features):
             response = self.client_get(
@@ -787,7 +787,7 @@ class OrganizationEventsTraceEndpointTest(
 
         features = self.FEATURES
 
-        self.store_uptime_results([uptime_result])
+        self.store_eap_items([uptime_result], reverse_ids=True)
 
         with self.feature(features):
             response = self.client_get(
@@ -818,7 +818,7 @@ class OrganizationEventsTraceEndpointTest(
             scheduled_check_time=self.day_ago,
             check_duration_us=200000,
         )
-        self.store_uptime_results([uptime_result])
+        self.store_eap_items([uptime_result], reverse_ids=True)
 
         occurrence = IssueOccurrence(
             id=uuid4().hex,
