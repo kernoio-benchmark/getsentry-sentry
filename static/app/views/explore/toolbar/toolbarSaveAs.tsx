@@ -46,6 +46,7 @@ import {
 } from 'sentry/views/explore/queryParams/context';
 import {Mode} from 'sentry/views/explore/queryParams/mode';
 import {isVisualizeFunction} from 'sentry/views/explore/queryParams/visualize';
+import {ToolbarCompareQueries} from 'sentry/views/explore/toolbar/toolbarCompareQueriesTooltip';
 import {TraceItemDataset} from 'sentry/views/explore/types';
 import {getAlertsUrl} from 'sentry/views/insights/common/utils/getAlertsUrl';
 
@@ -281,6 +282,8 @@ export function ToolbarSaveAs() {
     return null;
   }
 
+  const canCompareQueries = visualizes.some(isVisualizeFunction);
+
   return (
     <StyledToolbarSection data-test-id="section-save-as">
       <Grid flow="column" align="center" gap="md">
@@ -308,13 +311,13 @@ export function ToolbarSaveAs() {
             )}
           />
         </Tooltip>
-        <Tooltip
-          disabled={!hasCrossEvents}
-          title={t('Comparing cross event queries is not supported during early access.')}
+        <ToolbarCompareQueries
+          canCompareQueries={canCompareQueries}
+          hasCrossEvents={hasCrossEvents}
         >
-          <LinkButton
+          <WideLinkButton
             aria-label={t('Compare')}
-            disabled={hasCrossEvents}
+            disabled={hasCrossEvents || !canCompareQueries}
             onClick={() =>
               trackAnalytics('trace_explorer.compare', {
                 organization,
@@ -337,12 +340,16 @@ export function ToolbarSaveAs() {
             })}
           >
             {`${t('Compare Queries')}`}
-          </LinkButton>
-        </Tooltip>
+          </WideLinkButton>
+        </ToolbarCompareQueries>
       </Grid>
     </StyledToolbarSection>
   );
 }
+
+const WideLinkButton = styled(LinkButton)`
+  width: 100%;
+`;
 
 const DisabledText = styled('span')`
   color: ${p => p.theme.tokens.content.disabled};
