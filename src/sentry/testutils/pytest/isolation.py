@@ -1,21 +1,18 @@
 """Per-worker test isolation for parallel pytest processes.
 
 Every pytest process automatically gets an isolated worker identity (separate
-PostgreSQL databases, Redis DB, Kafka topics) unless ``SENTRY_PYTEST_SERIAL=1``
-is set.
+PostgreSQL databases, Redis DB, Kafka topics) via file-lock slot allocation.
 
-Worker identity is resolved in this order:
-
-1. ``SENTRY_PYTEST_SERIAL=1`` → no isolation, all defaults (old behaviour).
-2. ``PYTEST_XDIST_WORKER`` (e.g. "gw0") or ``SENTRY_TEST_WORKER_ID`` env var.
-3. File-lock slot allocation (default for plain ``pytest``).
+Every process acquires a slot via file lock at import time. No
+configuration needed.
 
 File locks guarantee exclusive Redis DB access and stable DB names (so
 ``--reuse-db`` works).  Locks are released automatically when the process
-exits, even on crash.
+exits, even on crash.  This works across xdist workers, plain pytest
+invocations, and concurrent runs in separate worktrees.
 
 ClickHouse / Snuba note: tables are dropped and recreated once per session
-(by the ``reset_snuba`` fixture or the parallel coordinator).  Within a
+(by the ``reset_snuba`` fixture or ``pytest_xdist_setupnodes``).  Within a
 session, isolation relies on unique snowflake IDs — each test gets fresh
 org / project IDs that never collide, so ClickHouse rows from other tests
 are invisible.  The Redis ``flushdb`` in test teardown preserves
@@ -58,8 +55,7 @@ def _acquire_slot() -> int:
         except OSError:
             fd.close()
     raise RuntimeError(
-        f"All {_MAX_SLOTS} parallel test slots are in use. "
-        "Wait for other test processes to finish or set SENTRY_PYTEST_SERIAL=1."
+        f"All {_MAX_SLOTS} parallel test slots are in use. Wait for other test processes to finish."
     )
 
 
@@ -80,55 +76,22 @@ def release_slot() -> None:
         _slot_lock_path = None
 
 
-# ---------------------------------------------------------------------------
-# Resolve identity
-# ---------------------------------------------------------------------------
-
-_serial = os.environ.get("SENTRY_PYTEST_SERIAL") == "1"
-
-# Set by pytest-xdist (e.g. "gw0") or manually (e.g. "3").
-_xdist_worker = os.environ.get("PYTEST_XDIST_WORKER")  # "gw0", "gw1", ...
-_manual_worker = os.environ.get("SENTRY_TEST_WORKER_ID")  # "0", "1", ...
-
-if _xdist_worker is not None:
-    _explicit_id = _xdist_worker.replace("gw", "")
-elif _manual_worker is not None:
-    _explicit_id = _manual_worker
-else:
-    _explicit_id = None
-
-worker_id: str | None
-worker_num: int | None
-
-if _serial:
-    # Serial mode uses the same DB/Redis/Kafka as slot 0.  Acquire slot 0's
-    # lock so a concurrent auto-allocated process can't collide with us.
-    try:
-        _acquire_slot()
-    except (OSError, RuntimeError):
-        pass  # Best-effort — don't block serial mode if locking fails.
-    worker_id = None
-    worker_num = None
-elif _explicit_id is not None:
-    worker_id = _explicit_id
-    worker_num = int(_explicit_id)
-else:
-    # Acquire an exclusive slot via file lock.  Gives stable DB names
-    # (--reuse-db works) and exclusive Redis DBs (no cross-session collision).
-    worker_num = _acquire_slot()
-    worker_id = str(worker_num)
+# Acquire an exclusive slot at import time.  Works across xdist workers,
+# plain pytest, and concurrent runs in separate worktrees.
+worker_num: int = _acquire_slot()
+worker_id: str = str(worker_num)
 
 
 # -- PostgreSQL ----------------------------------------------------------------
 
 
 def get_db_suffix() -> str:
-    """Return a suffix for PostgreSQL database names, or ``""`` for serial/slot-0.
+    """Return a suffix for PostgreSQL database names, or ``""`` for slot 0.
 
     Slot 0 returns ``""`` so the default database name matches the historical
     unsuffixed name — critical for ``--reuse-db`` and ClickHouse data alignment.
     """
-    if worker_num is not None and worker_num > 0:
+    if worker_num > 0:
         return f"_{worker_num}"
     return ""
 
@@ -142,7 +105,7 @@ def get_redis_db() -> int:
     Slot 0 → DB 9 (historical default).  Slots 1-8 → DBs 1-8.
     Slots 9-14 → DBs 10-15.  DB 0 is reserved for dev.
     """
-    if worker_num is None or worker_num == 0:
+    if worker_num == 0:
         return _TEST_REDIS_DB
     if worker_num < _TEST_REDIS_DB:
         return worker_num  # slots 1-8 → DBs 1-8
@@ -155,9 +118,9 @@ def get_redis_db() -> int:
 def get_kafka_topic(base_name: str) -> str:
     """Return a Kafka topic name unique to this worker.
 
-    Slot 0 returns the base name (matching serial mode) for backward compat.
+    Slot 0 returns the base name unchanged for backward compat.
     """
-    if worker_num is not None and worker_num > 0:
+    if worker_num > 0:
         return f"{base_name}-{worker_num}"
     return base_name
 

@@ -52,13 +52,14 @@ else:
 
 @pytest.fixture(autouse=True)
 def unclosed_files() -> Generator[None]:
-    from sentry.testutils.pytest.isolation import _slot_lock_path
+    from sentry.testutils.pytest.isolation import _SLOT_DIR
+
+    # Slot lock fds must stay open for the entire session — closing them
+    # releases the file lock, allowing another process to claim the slot.
+    slot_dir = str(_SLOT_DIR)
 
     def _filtered() -> frozenset[str]:
-        fds = _open_files()
-        if _slot_lock_path:
-            fds -= {_slot_lock_path}
-        return fds
+        return frozenset(f for f in _open_files() if not f.startswith(slot_dir))
 
     fds = _filtered()
     yield
