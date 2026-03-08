@@ -552,6 +552,12 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         config.hook.pytest_deselected(items=discard)
 
 
+def pytest_xdist_make_scheduler(config: pytest.Config, log) -> DeterministicScheduling:  # noqa: F821
+    from sentry.testutils.pytest.xdist_scheduler import DeterministicScheduling
+
+    return DeterministicScheduling(config, log)
+
+
 def pytest_xdist_setupnodes(config: pytest.Config, specs: list) -> None:
     # Prevent out-of-order Django initialization in workers.
     os.environ.pop("DJANGO_SETTINGS_MODULE", None)
