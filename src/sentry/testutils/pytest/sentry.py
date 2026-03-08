@@ -552,3 +552,31 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     # This only needs to be done if there are items to be de-selected
     if len(discard) > 0:
         config.hook.pytest_deselected(items=discard)
+
+
+def pytest_xdist_setupnodes(config: pytest.Config, specs: list) -> None:
+    # Prevent out-of-order Django initialization in workers.
+    os.environ.pop("DJANGO_SETTINGS_MODULE", None)
+
+    # Drop and recreate all ClickHouse tables before workers spawn.
+    from concurrent.futures import ThreadPoolExecutor
+
+    import requests
+
+    snuba = settings.SENTRY_SNUBA
+    endpoints = [
+        "/tests/events_analytics_platform/drop",
+        "/tests/spans/drop",
+        "/tests/events/drop",
+        "/tests/functions/drop",
+        "/tests/groupedmessage/drop",
+        "/tests/transactions/drop",
+        "/tests/metrics/drop",
+        "/tests/generic_metrics/drop",
+        "/tests/search_issues/drop",
+        "/tests/group_attributes/drop",
+    ]
+    results = list(
+        ThreadPoolExecutor(len(endpoints)).map(lambda ep: requests.post(snuba + ep), endpoints)
+    )
+    assert all(r.status_code == 200 for r in results)

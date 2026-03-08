@@ -345,6 +345,9 @@ def reset_snuba():
     In parallel mode the coordinator handles this before spawning workers,
     so worker processes skip this fixture.
     """
+    if os.environ.get("PYTEST_XDIST_WORKER"):
+        return
+
     from django.conf import settings
 
     snuba = settings.SENTRY_SNUBA

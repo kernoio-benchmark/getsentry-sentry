@@ -7,7 +7,7 @@ is set.
 Worker identity is resolved in this order:
 
 1. ``SENTRY_PYTEST_SERIAL=1`` → no isolation, all defaults (old behaviour).
-2. ``SENTRY_TEST_WORKER_ID`` env var.
+2. ``PYTEST_XDIST_WORKER`` (e.g. "gw0") or ``SENTRY_TEST_WORKER_ID`` env var.
 3. File-lock slot allocation (default for plain ``pytest``).
 
 File locks guarantee exclusive Redis DB access and stable DB names (so
@@ -86,8 +86,16 @@ def release_slot() -> None:
 
 _serial = os.environ.get("SENTRY_PYTEST_SERIAL") == "1"
 
-# Set by parallel runner or manually.
-_explicit_id: str | None = os.environ.get("SENTRY_TEST_WORKER_ID")
+# Set by pytest-xdist (e.g. "gw0") or manually (e.g. "3").
+_xdist_worker = os.environ.get("PYTEST_XDIST_WORKER")  # "gw0", "gw1", ...
+_manual_worker = os.environ.get("SENTRY_TEST_WORKER_ID")  # "0", "1", ...
+
+if _xdist_worker is not None:
+    _explicit_id = _xdist_worker.replace("gw", "")
+elif _manual_worker is not None:
+    _explicit_id = _manual_worker
+else:
+    _explicit_id = None
 
 worker_id: str | None
 worker_num: int | None
