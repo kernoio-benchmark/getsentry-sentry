@@ -117,6 +117,14 @@ def pytest_configure(config: pytest.Config) -> None:
 
     config.addinivalue_line("markers", "migrations: requires --migrations")
 
+    # pytest-rerunfailures is incompatible with our deterministic xdist
+    # scheduler — its socket-based IPC hangs during worker startup.
+    # Disable it when running under xdist.
+    if config.getoption("numprocesses", None):
+        rerunfailures = config.pluginmanager.get_plugin("rerunfailures")
+        if rerunfailures is not None:
+            config.pluginmanager.unregister(rerunfailures)
+
     if sys.platform == "darwin" and shutil.which("colima"):
         # This is the only way other than pytest --basetemp to change
         # the temproot. We'd like to keep invocations to just "pytest".
