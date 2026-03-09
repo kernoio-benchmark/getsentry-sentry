@@ -8,15 +8,18 @@ tests run in collection order.  This guarantees:
 2. Tests within a file always execute in the same order.
 3. No dynamic load-balancing or shuffling — critical for test suites with
    ordering-sensitive fixtures or ClickHouse isolation assumptions.
+
+Unlike xdist's built-in schedulers, this one tolerates minor ordering
+differences between worker collections (caused by set/dict-based
+``pytest.mark.parametrize``) by comparing sorted collections instead of
+requiring identical order.
 """
 
 from __future__ import annotations
 
 from collections import OrderedDict
 
-from _pytest.runner import CollectReport
 from xdist.remote import Producer
-from xdist.report import report_collection_diff
 from xdist.workermanage import parse_spec_config
 
 
@@ -80,12 +83,13 @@ class DeterministicScheduling:
 
         if self.collection_is_completed:
             assert self.collection
-            if collection != self.collection:
-                other_node = next(iter(self.registered_collections.keys()))
-                msg = report_collection_diff(
-                    self.collection, collection, other_node.gateway.id, node.gateway.id
+            # Compare as sets — ordering may differ due to hash randomization
+            # in set/dict-based pytest.mark.parametrize.
+            if set(collection) != set(self.collection):
+                self.log(
+                    "Worker %s collected different tests (got %d, expected %d)"
+                    % (node.gateway.id, len(collection), len(self.collection))
                 )
-                self.log(msg)
                 return
 
         self.registered_collections[node] = list(collection)
@@ -114,11 +118,13 @@ class DeterministicScheduling:
             self.log("**Different tests collected, aborting run**")
             return
 
-        self.collection = list(next(iter(self.registered_collections.values())))
+        # Build canonical sorted collection for deterministic assignment.
+        first_collection = next(iter(self.registered_collections.values()))
+        self.collection = sorted(first_collection)
         if not self.collection:
             return
 
-        # Group tests by file scope, preserving collection order.
+        # Group tests by file scope, preserving sorted order within each file.
         scopes: OrderedDict[str, OrderedDict[str, bool]] = OrderedDict()
         for nodeid in self.collection:
             scope = self._split_scope(nodeid)
@@ -136,14 +142,21 @@ class DeterministicScheduling:
 
         # Round-robin assignment: file i goes to worker i % n.
         node_indices: dict = {node: [] for node in active_nodes}
+        # Build nodeid→index lookup per worker for O(1) translation.
+        node_index_maps: dict = {}
+        for node in active_nodes:
+            node_index_maps[node] = {
+                nid: idx for idx, nid in enumerate(self.registered_collections[node])
+            }
+
         for i, (scope, work_unit) in enumerate(scope_list):
             node = active_nodes[i % len(active_nodes)]
             self.assigned_work[node][scope] = work_unit
             self._pending[node] = self._pending.get(node, 0) + len(work_unit)
 
-            worker_collection = self.registered_collections[node]
+            index_map = node_index_maps[node]
             for nodeid in work_unit:
-                node_indices[node].append(worker_collection.index(nodeid))
+                node_indices[node].append(index_map[nodeid])
 
         # Send all work to each node then immediately tell it to shut down.
         # The xdist worker only runs its last queued test upon receiving
@@ -161,20 +174,36 @@ class DeterministicScheduling:
         return nodeid.split("::", 1)[0]
 
     def _check_nodes_have_same_collection(self):
+        """Verify all nodes collected the same set of tests.
+
+        Unlike xdist's default check, this compares sorted collections to
+        tolerate ordering differences from hash randomization in set/dict
+        parametrize arguments.
+        """
         node_collection_items = list(self.registered_collections.items())
         first_node, col = node_collection_items[0]
+        reference = sorted(col)
         same_collection = True
 
         for node, collection in node_collection_items[1:]:
-            msg = report_collection_diff(col, collection, first_node.gateway.id, node.gateway.id)
-            if not msg:
-                continue
-
-            same_collection = False
-            self.log(msg)
-
-            if self.config is not None:
-                rep = CollectReport(node.gateway.id, "failed", longrepr=msg, result=[])
-                self.config.hook.pytest_collectreport(report=rep)
+            if sorted(collection) != reference:
+                same_collection = False
+                # Log the actual difference for debugging.
+                ref_set = set(col)
+                other_set = set(collection)
+                only_first = ref_set - other_set
+                only_second = other_set - ref_set
+                self.log(
+                    "Collection mismatch between %s and %s: "
+                    "only in %s: %s, only in %s: %s"
+                    % (
+                        first_node.gateway.id,
+                        node.gateway.id,
+                        first_node.gateway.id,
+                        only_first,
+                        node.gateway.id,
+                        only_second,
+                    )
+                )
 
         return same_collection
