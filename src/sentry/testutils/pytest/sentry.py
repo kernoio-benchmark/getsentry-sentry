@@ -117,13 +117,30 @@ def pytest_configure(config: pytest.Config) -> None:
 
     config.addinivalue_line("markers", "migrations: requires --migrations")
 
-    # pytest-rerunfailures is incompatible with our deterministic xdist
-    # scheduler — its socket-based IPC hangs during worker startup.
-    # Disable it when running under xdist.
-    if config.getoption("numprocesses", None):
-        rerunfailures = config.pluginmanager.get_plugin("rerunfailures")
-        if rerunfailures is not None:
-            config.pluginmanager.unregister(rerunfailures)
+    # pytest-rerunfailures <=16.1 has a bug where _sock_recv loops forever
+    # when a socket connection closes: recv(1) returns b"" which never
+    # matches the newline delimiter.  Monkey-patch to raise ConnectionError
+    # on EOF so the server's `suppress(ConnectionError)` handles it cleanly.
+    try:
+        from pytest_rerunfailures import SocketDB
+
+        def _safe_sock_recv(self, conn):
+            buf = b""
+            while True:
+                try:
+                    b = conn.recv(1)
+                except (TimeoutError, OSError):
+                    raise ConnectionError("socket closed")
+                if not b:
+                    raise ConnectionError("socket closed")
+                if b == self.delim:
+                    break
+                buf += b
+            return buf.decode()
+
+        SocketDB._sock_recv = _safe_sock_recv
+    except ImportError:
+        pass
 
     if sys.platform == "darwin" and shutil.which("colima"):
         # This is the only way other than pytest --basetemp to change
