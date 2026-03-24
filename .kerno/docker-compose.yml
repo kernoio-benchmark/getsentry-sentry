@@ -1,0 +1,17 @@
+services:
+  sut:
+    build:
+      context: ${BUILD_CONTEXT}
+      dockerfile: ${DOCKERFILE_PATH}
+    env_file:
+      - .env
+    ports:
+      - "7999:7999"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -sf http://localhost:7999/ || exit 1
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
